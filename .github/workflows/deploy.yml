@@ -13,16 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Node
-        uses: actions/setup-node@60edb5dd545a775178f52524745d2bb17e1e4a69
+        # v4.2.0
+        uses: actions/setup-node@392255995c2433d1ad07a6f0348247f95e6b4d4c
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install Dependencies
-        # 如果 npm ci 報錯，可暫時改為 npm install
         run: npm install
 
       - name: Build
@@ -32,9 +33,9 @@ jobs:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
 
       - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@65b5dfc6ca6440e216892305dae08f51a700857b
+        # v4.7.3
+        uses: JamesIves/github-pages-deploy-action@6d460e4236a2a095697693d22393086937510d93
         with:
           folder: dist
           branch: gh-pages
-          # 增加此項可確保部署時不會因為權限問題卡住
           clean: true
