@@ -13,18 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        # 改用版本標籤以提高穩定性
         uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          # 移除 cache: 'npm' 以避免在缺少 lock 檔時崩潰
+          # 若後續有 package-lock.json 再加回可加速編譯
 
       - name: Install Dependencies
-        # 確保依賴安裝成功，若 package-lock 損壞則嘗試強制安裝
-        run: npm install
+        # 優先使用 npm install。如果本地沒有 lock 檔，這會自動產生一個並安裝。
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Build
         run: npm run build
