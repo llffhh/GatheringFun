@@ -19,19 +19,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # 暫時註解 cache，直到 package-lock.json 確實存在於遠端倉庫中
-          # cache: 'npm' 
 
       - name: Install Dependencies
-        # 增加路徑檢查，並確保在缺少 lock 檔時不會崩潰
-        run: |
-          if [ -f package-lock.json ]; then
-            echo "Found package-lock.json, running npm ci..."
-            npm ci
-          else
-            echo "package-lock.json not found, running npm install to generate one..."
-            npm install
-          fi
+        # 強制使用 install 確保在缺少 lock 檔時會現場生成
+        run: npm install
 
       - name: Build
         run: npm run build
