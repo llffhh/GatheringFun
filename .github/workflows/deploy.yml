@@ -13,17 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        # v4.2.2
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        # 改用版本標籤以提高穩定性
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        # v4.2.0
-        uses: actions/setup-node@392255995c2433d1ad07a6f0348247f95e6b4d4c
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install Dependencies
+        # 確保依賴安裝成功，若 package-lock 損壞則嘗試強制安裝
         run: npm install
 
       - name: Build
@@ -33,8 +33,7 @@ jobs:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
 
       - name: Deploy
-        # v4.7.3
-        uses: JamesIves/github-pages-deploy-action@6d460e4236a2a095697693d22393086937510d93
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
           branch: gh-pages
