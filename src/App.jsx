@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { db, auth } from './lib/firebase'
-import { collection, addDoc, serverTimestamp, doc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { collection, addDoc, serverTimestamp, doc, onSnapshot, updateDoc, setDoc } from 'firebase/firestore'
 import { signInAnonymously } from 'firebase/auth'
 import HostForm from './components/HostForm'
 import JoinSession from './components/JoinSession'
+import ParticipantPreferences from './components/ParticipantPreferences'
 import TinderSwiper from './components/TinderSwiper'
 import Amidakuji from './components/Amidakuji'
 import { fetchRestaurantsMock } from './services/restaurantService'
@@ -12,7 +13,7 @@ import './App.css'
 function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [mode, setMode] = useState('home') // home, create, join, waiting, swiping, amidakuji
+  const [mode, setMode] = useState('home') // home, create, join, preferences, swiping, waiting_amidakuji, amidakuji, finished
   const [joinId, setJoinId] = useState('')
   const [timeLeft, setTimeLeft] = useState('')
   const [restaurants, setRestaurants] = useState([])
@@ -38,10 +39,22 @@ function App() {
           const data = snapshot.data()
           setSession({ id: snapshot.id, ...data })
 
-          // Auto-transition to swiping if status changes
-          if (data.status === 'swiping' && mode !== 'swiping') {
-            loadRestaurants(data);
-            setMode('swiping')
+          const myUid = auth.currentUser?.uid;
+          const hasSubmittedPrefs = data.participantPreferences?.[myUid];
+
+          // IMMEDIATE TRANSITION: If I have submitted preferences, go to swiping immediately.
+          // This allows asynchronous Phase 2 -> Phase 3 transition as per workflow.
+          if (hasSubmittedPrefs && mode !== 'swiping' && mode !== 'waiting_amidakuji' && mode !== 'amidakuji' && mode !== 'finished') {
+            loadRestaurants({ id: snapshot.id, ...data });
+            setMode('swiping');
+          }
+
+          // Global phase transitions (only for phases after swiping)
+          if (data.status === 'amidakuji' && mode !== 'amidakuji') {
+            setMode('amidakuji')
+          }
+          if (data.status === 'finished' && mode !== 'finished') {
+            setMode('finished')
           }
         }
       })
@@ -50,8 +63,24 @@ function App() {
   }, [session?.id, joinId, mode])
 
   const loadRestaurants = async (sessionData) => {
-    const data = await fetchRestaurantsMock(sessionData);
+    setLoading(true);
+    const userId = auth.currentUser.uid;
+    const participantPrefs = sessionData.participantPreferences?.[userId];
+
+    if (!participantPrefs) {
+      console.warn('No participant preferences found, using session defaults');
+    }
+
+    const filterPrefs = {
+      minPrice: Number(sessionData.minPrice),
+      maxPrice: Number(sessionData.maxPrice),
+      locations: participantPrefs?.locations || [],
+      cuisines: participantPrefs?.cuisines || []
+    };
+
+    const data = await fetchRestaurantsMock(filterPrefs);
     setRestaurants(data);
+    setLoading(false);
   }
 
   // Timer logic
@@ -103,8 +132,139 @@ function App() {
     }
   }
 
-  const onJoined = (id) => {
-    setMode('waiting')
+  const handleStartSwiping = async () => {
+    if (!session?.id) return;
+    // Host should also go through Phase 2 (preferences)
+    setMode('preferences');
+  }
+
+  const generateRandomRungs = (numLanes = 5, numRungs = 8) => {
+    const rungs = [];
+    const boardHeight = 320;
+    const minSpacing = 30;
+
+    for (let i = 0; i < numRungs; i++) {
+      const lane = Math.floor(Math.random() * (numLanes - 1));
+      const y = Math.random() * (boardHeight - 2 * minSpacing) + minSpacing;
+      rungs.push({ lane, y: Math.round(y / 20) * 20 });
+    }
+
+    return rungs.sort((a, b) => a.y - b.y);
+  }
+
+  const handleStartAmidakuji = async () => {
+    if (!session?.id || !session?.restaurantVotes) return;
+    setLoading(true);
+    try {
+      // Aggregate votes
+      const voteCounts = {};
+      Object.values(session.restaurantVotes).forEach(likes => {
+        likes.forEach(rid => {
+          voteCounts[rid] = (voteCounts[rid] || 0) + 1;
+        });
+      });
+
+      // Sort and pick top 5
+      const sortedRids = Object.keys(voteCounts).sort((a, b) => voteCounts[b] - voteCounts[a]);
+      const top5Rids = sortedRids.slice(0, 5);
+
+      // If fewer than 5, fill with others from the fetched restaurants
+      const finalTop5Rids = [...top5Rids];
+      if (finalTop5Rids.length < 5) {
+        restaurants.forEach(r => {
+          if (finalTop5Rids.length < 5 && !finalTop5Rids.includes(r.id)) {
+            finalTop5Rids.push(r.id);
+          }
+        });
+      }
+
+      // Create ranking data
+      const ranking = finalTop5Rids.map(rid => {
+        const restaurant = restaurants.find(r => r.id === rid);
+        return {
+          id: rid,
+          name: restaurant?.name || 'Unknown',
+          votes: voteCounts[rid] || 0
+        };
+      });
+
+      const docRef = doc(db, 'sessions', session.id);
+      const updates = {
+        status: 'amidakuji',
+        amidakuji: {
+          results: finalTop5Rids,
+          initialRungs: generateRandomRungs(),
+          ranking: ranking
+        }
+      };
+      await setDoc(docRef, updates, { merge: true });
+    } catch (error) {
+      console.error('Error starting amidakuji phase:', error);
+      alert('Failed to start Amidakuji phase.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleSubmitPreferences = async (preferences) => {
+    if (!session?.id) return;
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'sessions', session.id);
+
+      const updates = {
+        participantPreferences: {
+          [auth.currentUser.uid]: {
+            ...preferences,
+            submittedAt: serverTimestamp()
+          }
+        }
+      };
+
+      // Auto-start swiping phase if I am the host
+      if (session.hostId === auth.currentUser.uid) {
+        updates.status = 'swiping';
+      }
+
+      await setDoc(docRef, updates, { merge: true });
+
+      // OPTIMISTIC UPDATE: Use the preferences we just created to load restaurants immediately
+      // This prevents waiting for the DB listener which might be slow
+      const optimisticSession = {
+        ...session,
+        participantPreferences: {
+          ...session.participantPreferences,
+          [auth.currentUser.uid]: preferences
+        }
+      };
+
+      await loadRestaurants(optimisticSession);
+      setMode('swiping');
+    } catch (error) {
+      console.error('Error submitting preferences:', error);
+      alert('Failed to submit preferences.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const onJoined = async (id, participantPreferences = null) => {
+    setJoinId(id)
+
+    // OPTIMISTIC UPDATE: If we have preferences from the join form, load immediately
+    if (participantPreferences && session) {
+      const optimisticSession = {
+        ...session,
+        participantPreferences: {
+          ...session.participantPreferences,
+          [auth.currentUser.uid]: participantPreferences
+        }
+      };
+      await loadRestaurants(optimisticSession);
+      setMode('swiping');
+    } else {
+      setMode('waiting');
+    }
   }
 
   return (
@@ -168,6 +328,19 @@ function App() {
         </div>
       )}
 
+      {mode === 'preferences' && session && (
+        <div className="text-center">
+          <button onClick={() => { setSession(null); setMode('home'); }} className="mb-8 text-gray-500 hover:text-blue-500 flex items-center mx-auto text-sm">
+            ← Cancel and Go Back
+          </button>
+          <ParticipantPreferences
+            sessionData={session}
+            onSubmit={handleSubmitPreferences}
+            loading={loading}
+          />
+        </div>
+      )}
+
       {(mode === 'created' || mode === 'waiting') && (
         <div className="max-w-xl mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl text-center text-gray-900 dark:text-white">
           <div className="mb-6 inline-flex items-center justify-center w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full">
@@ -203,24 +376,67 @@ function App() {
             Copy ID
           </button>
 
+          {/* Host Only: Start Swiping Phase */}
+          {session?.hostId === auth.currentUser?.uid && session?.status === 'recruiting' && (
+            <button
+              onClick={handleStartSwiping}
+              disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all mb-4"
+            >
+              {loading ? 'Starting...' : 'Start Swiping Phase →'}
+            </button>
+          )}
+
           <button onClick={() => { setSession(null); setMode('home'); }} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm font-medium">
             ← Exit Session
           </button>
+
+          {/* Host Only: Start Amidakuji Phase */}
+          {session?.hostId === auth.currentUser?.uid && session?.status === 'swiping' && (
+            <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-sm text-gray-500 mb-4">Once everyone has voted, start the game!</p>
+              <button
+                onClick={handleStartAmidakuji}
+                disabled={loading}
+                className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"
+              >
+                {loading ? 'Initializing...' : 'Start Amidakuji Battle! ⚔️'}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {mode === 'swiping' && (
         <div className="text-center">
           <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-12">Vote for Restaurants</h2>
-          <TinderSwiper
-            restaurants={restaurants}
-            onFinish={async (votes) => {
-              const docRef = doc(db, 'sessions', session.id);
-              await updateDoc(docRef, {
-                [`restaurantVotes.${auth.currentUser.uid}`]: votes.like
-              });
-              setMode('waiting_amidakuji');
-            }}
-          />
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center">
+              <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-500 font-bold animate-pulse">Finding best spots for you...</p>
+            </div>
+          ) : (
+            <TinderSwiper
+              restaurants={restaurants}
+              onFinish={async (votes) => {
+                try {
+                  console.log('Swiping finished, saving votes:', votes);
+                  const docRef = doc(db, 'sessions', session.id);
+                  await setDoc(docRef, {
+                    restaurantVotes: {
+                      [auth.currentUser.uid]: votes.like
+                    }
+                  }, { merge: true });
+                  console.log('Votes saved, transitioning to waiting_amidakuji');
+                  setMode('waiting_amidakuji');
+                } catch (error) {
+                  console.error('Error saving votes:', error);
+                  alert('Error saving votes: ' + error.message + '. Please check console or try again.');
+                  // Optional: Force transition if critical?
+                  // setMode('waiting_amidakuji');
+                }
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -231,11 +447,25 @@ function App() {
           </div>
           <h2 className="text-3xl font-bold mb-2">Votes Cast!</h2>
           <p className="text-gray-500 dark:text-gray-400 mb-8">Waiting for everyone to finish swiping. Next: The Amidakuji Game!</p>
-          <div className="animate-pulse flex items-center justify-center gap-2">
+          <div className="animate-pulse flex items-center justify-center gap-2 mb-8">
             <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
             <span className="w-3 h-3 bg-blue-500 rounded-full" style={{ animationDelay: '200ms' }}></span>
             <span className="w-3 h-3 bg-blue-500 rounded-full" style={{ animationDelay: '400ms' }}></span>
           </div>
+
+          {/* Host Only: Start Amidakuji */}
+          {session?.hostId === auth.currentUser?.uid && (
+            <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-sm text-gray-500 mb-4">Once everyone has voted, start the game!</p>
+              <button
+                onClick={handleStartAmidakuji}
+                disabled={loading}
+                className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"
+              >
+                {loading ? 'Initializing...' : 'Start Amidakuji Battle! ⚔️'}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {mode === 'amidakuji' && (
@@ -247,9 +477,12 @@ function App() {
             restaurants={restaurants}
             currentUser={auth.currentUser}
             sessionData={session}
-            onFinish={(result) => {
-              setSession(prev => ({ ...prev, finalChoice: result, status: 'finished' }));
-              setMode('finished');
+            onFinish={async (result) => {
+              const docRef = doc(db, 'sessions', session.id);
+              await updateDoc(docRef, {
+                status: 'finished',
+                finalChoice: result
+              });
             }}
           />
         </div>
@@ -280,8 +513,19 @@ function App() {
           <div className="flex flex-col gap-4">
             <button
               onClick={() => {
+                const mapsUrl = session.finalChoice.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(session.finalChoice.name + ' ' + session.finalChoice.address)}`;
+                window.open(mapsUrl, '_blank');
+              }}
+              className="w-full py-5 bg-gradient-to-r from-red-500 to-pink-500 text-white font-black rounded-2xl shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all flex items-center justify-center gap-3"
+            >
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z" /></svg>
+              View on Google Maps
+            </button>
+
+            <button
+              onClick={() => {
                 const title = encodeURIComponent(`Gathering: ${session.name}`);
-                const details = encodeURIComponent(`Restaurant: ${session.finalChoice.name}\nAddress: ${session.finalChoice.address}`);
+                const details = encodeURIComponent(`Restaurant: ${session.finalChoice.name}\\nAddress: ${session.finalChoice.address}`);
                 const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${encodeURIComponent(session.finalChoice.address)}`;
                 window.open(url, '_blank');
               }}

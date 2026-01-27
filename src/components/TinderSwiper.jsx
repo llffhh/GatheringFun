@@ -68,7 +68,7 @@ const TinderSwiper = ({ restaurants, onFinish }) => {
 
                         <div className="flex gap-4">
                             <a
-                                href={currentRestaurant.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentRestaurant.name)}`}
+                                href={currentRestaurant.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${currentRestaurant.name}, ${currentRestaurant.address}`)}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 dark:text-gray-300 text-gray-700 text-center rounded-xl text-sm font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
@@ -98,7 +98,7 @@ const TinderSwiper = ({ restaurants, onFinish }) => {
             </div>
 
             <p className="mt-8 text-sm text-gray-500">{currentIndex + 1} / {restaurants.length}</p>
-        </div>
+        </div >
     );
 };
 

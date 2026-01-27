@@ -1,41 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { db, auth } from '../lib/firebase';
-import { doc, getDoc, updateDoc, setDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
+import React, { useState } from 'react';
 
-const JoinSession = ({ sessionId, onJoined }) => {
-    const [session, setSession] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+const ParticipantPreferences = ({ sessionData, onSubmit, loading }) => {
     const [preferences, setPreferences] = useState({
         dates: [],
         timePeriods: [],
         locations: [],
         cuisines: []
     });
-
-    useEffect(() => {
-        if (sessionId) {
-            fetchSession();
-        }
-    }, [sessionId]);
-
-    const fetchSession = async () => {
-        setLoading(true);
-        try {
-            const docRef = doc(db, 'sessions', sessionId);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                setSession({ id: docSnap.id, ...docSnap.data() });
-            } else {
-                setError('Session not found');
-            }
-        } catch (err) {
-            setError('Error fetching session');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleMultiSelect = (field, value) => {
         setPreferences(prev => {
@@ -47,38 +18,13 @@ const JoinSession = ({ sessionId, onJoined }) => {
         });
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
-        if (preferences.dates.length === 0 || preferences.timePeriods.length === 0 || preferences.locations.length === 0) {
+        if (preferences.dates.length === 0 || preferences.locations.length === 0) {
             alert('Please select at least one date, time period, and location');
             return;
         }
-
-        setLoading(true);
-        try {
-            if (!auth.currentUser) await signInAnonymously(auth);
-
-            const docRef = doc(db, 'sessions', sessionId);
-            await setDoc(docRef, {
-                participants: arrayUnion(auth.currentUser.uid),
-                participantPreferences: {
-                    [auth.currentUser.uid]: {
-                        ...preferences,
-                        submittedAt: serverTimestamp()
-                    }
-                }
-            }, { merge: true });
-
-            onJoined(sessionId, {
-                ...preferences,
-                submittedAt: serverTimestamp()
-            });
-        } catch (err) {
-            console.error(err);
-            alert('Failed to join session');
-        } finally {
-            setLoading(false);
-        }
+        onSubmit(preferences);
     };
 
     // Format date to show day of week
@@ -92,29 +38,25 @@ const JoinSession = ({ sessionId, onJoined }) => {
 
     // Generate date range from start to end
     const getDateRange = () => {
-        if (!session) return [];
         const dates = [];
-        const start = new Date(session.startDate);
-        const end = new Date(session.endDate);
+        const start = new Date(sessionData.startDate);
+        const end = new Date(sessionData.endDate);
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             dates.push(new Date(d).toISOString().split('T')[0]);
         }
+
         return dates;
     };
-
-    if (loading && !session) return <div className="text-center py-20 text-blue-600 font-bold">Loading Session...</div>;
-    if (error) return <div className="text-center py-20 text-red-500 font-bold">{error}</div>;
-    if (!session) return null;
 
     const dateRange = getDateRange();
 
     return (
         <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-xl dark:bg-gray-800 transition-all duration-300 text-left">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 text-center">Join "{session.name}"</h2>
-            <p className="text-gray-500 text-center mb-8 italic">Choose your preferences from the host's list</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 text-center">Select Your Preferences</h2>
+            <p className="text-center text-gray-500 dark:text-gray-400 mb-8">Choose from the options set by the host</p>
 
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Date Selection */}
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -182,7 +124,7 @@ const JoinSession = ({ sessionId, onJoined }) => {
                         )}
                     </label>
                     <div className="flex flex-wrap gap-2">
-                        {session.locations.map(location => (
+                        {sessionData.locations.map(location => (
                             <button
                                 type="button"
                                 key={location}
@@ -210,7 +152,7 @@ const JoinSession = ({ sessionId, onJoined }) => {
                         )}
                     </label>
                     <div className="flex flex-wrap gap-2">
-                        {session.cuisines.map(cuisine => (
+                        {sessionData.cuisines.map(cuisine => (
                             <button
                                 type="button"
                                 key={cuisine}
@@ -225,6 +167,7 @@ const JoinSession = ({ sessionId, onJoined }) => {
                             </button>
                         ))}
                     </div>
+                    <p className="text-xs text-gray-500 mt-2 italic">Cuisine selection is optional</p>
                 </div>
 
                 <button
@@ -233,11 +176,11 @@ const JoinSession = ({ sessionId, onJoined }) => {
                     className={`w-full py-4 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mt-4 ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-purple-600'
                         }`}
                 >
-                    {loading ? 'Joining...' : 'Submit Preferences & Join →'}
+                    {loading ? 'Saving...' : 'Submit Preferences & Start Swiping →'}
                 </button>
             </form>
         </div>
     );
 };
 
-export default JoinSession;
+export default ParticipantPreferences;

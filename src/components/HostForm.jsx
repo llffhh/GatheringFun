@@ -17,8 +17,8 @@ const HostForm = ({ onSubmit, loading }) => {
         country: 'Taiwan',
         locations: [],
         cuisines: [],
-        minPrice: 1,
-        maxPrice: 4,
+        minPrice: 100,
+        maxPrice: 1000,
         waitMinutes: 10
     });
 
@@ -108,46 +108,31 @@ const HostForm = ({ onSubmit, loading }) => {
                             <option value="Malaysia">Malaysia</option>
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Price Range</label>
-                        <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/50 p-1.5 rounded-xl border border-gray-200 dark:border-gray-600">
-                            {[1, 2, 3, 4].map(p => {
-                                const isSelected = p >= formData.minPrice && p <= formData.maxPrice;
-                                return (
-                                    <button
-                                        key={p}
-                                        type="button"
-                                        onClick={() => {
-                                            // Simple logic: if click below min, move min. If click above max, move max.
-                                            // If click between, move nearest edge.
-                                            if (p < formData.minPrice) {
-                                                setFormData(prev => ({ ...prev, minPrice: p }));
-                                            } else if (p > formData.maxPrice) {
-                                                setFormData(prev => ({ ...prev, maxPrice: p }));
-                                            } else {
-                                                // If clicking inside, adjust the closer boundary
-                                                const distMin = Math.abs(p - formData.minPrice);
-                                                const distMax = Math.abs(p - formData.maxPrice);
-                                                if (distMin < distMax) {
-                                                    setFormData(prev => ({ ...prev, minPrice: p }));
-                                                } else {
-                                                    setFormData(prev => ({ ...prev, maxPrice: p }));
-                                                }
-                                            }
-                                        }}
-                                        className={`flex-1 py-1.5 rounded-lg text-lg font-bold transition-all ${isSelected
-                                            ? 'bg-blue-500 text-white shadow-sm'
-                                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                                            }`}
-                                    >
-                                        {'$'.repeat(p)}
-                                    </button>
-                                );
-                            })}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Min Price</label>
+                            <input
+                                type="number"
+                                name="minPrice"
+                                value={formData.minPrice}
+                                onChange={handleChange}
+                                min="100"
+                                max="1000"
+                                className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1 px-1">
-                            Current: {'$'.repeat(formData.minPrice)} - {'$'.repeat(formData.maxPrice)}
-                        </p>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Price</label>
+                            <input
+                                type="number"
+                                name="maxPrice"
+                                value={formData.maxPrice}
+                                onChange={handleChange}
+                                min="100"
+                                max="1000"
+                                className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -180,22 +165,33 @@ const HostForm = ({ onSubmit, loading }) => {
 
                 {/* Cuisine Selection */}
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Preferred Cuisines</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Preferred Cuisines
+                        {formData.cuisines.length > 0 && (
+                            <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                {formData.cuisines.length} selected
+                            </span>
+                        )}
+                    </label>
                     <div className="flex flex-wrap gap-2">
                         {CUISINES.map(cuisine => (
                             <button
                                 type="button"
                                 key={cuisine}
                                 onClick={() => handleMultiSelect('cuisines', cuisine)}
-                                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${formData.cuisines.includes(cuisine)
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+                                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${formData.cuisines.includes(cuisine)
+                                    ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300 scale-105'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
                                     }`}
                             >
+                                {formData.cuisines.includes(cuisine) && '✓ '}
                                 {cuisine}
                             </button>
                         ))}
                     </div>
+                    {formData.cuisines.length === 0 && (
+                        <p className="text-xs text-gray-500 mt-2 italic">Click to select multiple cuisines (optional)</p>
+                    )}
                 </div>
 
                 {/* Wait Duration */}
