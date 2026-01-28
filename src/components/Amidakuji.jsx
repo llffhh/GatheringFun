@@ -1,242 +1,296 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 
 const Amidakuji = ({ sessionId, restaurants, currentUser, sessionData, onFinish }) => {
-    const [localRungs, setLocalRungs] = useState([]);
-    const [myLane, setMyLane] = useState(0);
+    const [rungs, setRungs] = useState([]);
+    const [myLane, setMyLane] = useState(null);
     const [animating, setAnimating] = useState(false);
-    const [finalPath, setFinalPath] = useState([]);
-    const [gameResult, setGameResult] = useState(null);
-    const [showRanking, setShowRanking] = useState(false);
+    const [pathPoints, setPathPoints] = useState([]);
+    const [winner, setWinner] = useState(null);
 
-    const numLanes = 5;
-    const laneGap = 60;
-    const boardHeight = 320;
+    // SVG Coordinate System
+    const WIDTH = 600;
+    const HEIGHT = 800; // Increased height to ensure labels fit
+    const MARGIN_TOP = 100;
+    const MARGIN_BOTTOM = 150; // More space for bottom labels
+    const LANE_COUNT = 5;
+    // Calculate lane x-coordinates distributed evenly across width
+    const LANE_WIDTH = WIDTH / LANE_COUNT;
+    const LANE_X = Array.from({ length: LANE_COUNT }, (_, i) => LANE_WIDTH * i + LANE_WIDTH / 2);
 
-    // Load initial rungs from Firestore (one-time)
-    useEffect(() => {
-        if (sessionData.amidakuji?.initialRungs) {
-            setLocalRungs([...sessionData.amidakuji.initialRungs]);
+    // Y-bounds for rungs
+    const RUNG_MIN_Y = MARGIN_TOP + 20;
+    const RUNG_MAX_Y = HEIGHT - MARGIN_BOTTOM - 20;
+
+    // Ordered restaurants (fixed for this session/render)
+    // We default to the received list. If fewer than 5, we might repeat or have empty slots?
+    // Assuming restaurants passed are exactly 5 or fewer.
+    // We map them to the 5 lanes.
+    const targets = Array.from({ length: LANE_COUNT }, (_, i) => {
+        // If we have random results from session, use them, otherwise use passed restaurants
+        const resId = sessionData.amidakuji?.results?.[i];
+        if (resId) return restaurants.find(r => r.id === resId) || { name: '???' };
+        return restaurants[i % restaurants.length] || { name: '???' };
+    });
+
+    // Generate random rungs locally
+    const generateRungs = () => {
+        const newRungs = [];
+        const numRungs = 12 + Math.floor(Math.random() * 8); // 12-20 rungs
+
+        for (let i = 0; i < numRungs; i++) {
+            // Pick a random lane (0 to LANE_COUNT-2) because a rung connects i and i+1
+            const lane = Math.floor(Math.random() * (LANE_COUNT - 1));
+            // Pick a random Y
+            const y = RUNG_MIN_Y + Math.random() * (RUNG_MAX_Y - RUNG_MIN_Y);
+
+            // Avoid overlapping rungs (simple proximity check)
+            const tooClose = newRungs.some(r => Math.abs(r.y - y) < 15);
+            if (!tooClose) {
+                newRungs.push({ lane, y });
+            }
         }
-    }, [sessionData.amidakuji?.initialRungs]);
-
-    // Add rung locally only (no Firestore sync)
-    const addRung = (laneIndex, y) => {
-        if (animating || laneIndex >= numLanes - 1) return;
-        const newRung = { lane: laneIndex, y: Math.round(y / 20) * 20 };
-
-        // Prevent duplicate rungs at same spot
-        if (localRungs.some(r => r.lane === newRung.lane && r.y === newRung.y)) return;
-
-        setLocalRungs(prev => [...prev, newRung]);
+        // Important: Sort by Y for path calculation logic
+        setRungs(newRungs.sort((a, b) => a.y - b.y));
     };
 
-    const calculatePath = (startLane) => {
-        let currentLane = startLane;
-        const path = [{ x: currentLane * laneGap + 60, y: 40 }];
+    // Initialize on mount
+    useEffect(() => {
+        generateRungs();
+    }, []);
 
-        // Sort rungs by Y to process them top-down
-        const sortedRungs = [...localRungs].sort((a, b) => a.y - b.y);
+    // Add Rung on Click
+    const handleSvgClick = (e) => {
+        if (animating || winner) return;
 
-        sortedRungs.forEach(rung => {
-            // If rung connects current lane to right
+        const svg = e.currentTarget;
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+        // Check if click is within playable area
+        if (svgP.y < RUNG_MIN_Y || svgP.y > RUNG_MAX_Y) return;
+
+        // Find closest lane gap
+        // Gaps are between LANE_X[i] and LANE_X[i+1]
+        // The midpoint between lane i and i+1 is LANE_X[i] + LANE_WIDTH/2
+        // We can just calculate which "gap index" the click falls into
+        const gapIndex = Math.floor(svgP.x / LANE_WIDTH);
+
+        if (gapIndex >= 0 && gapIndex < LANE_COUNT - 1) {
+            const newRung = { lane: gapIndex, y: svgP.y };
+            setRungs(prev => [...prev, newRung].sort((a, b) => a.y - b.y));
+        }
+    };
+
+    const calculatePath = (startIndex) => {
+        const points = [];
+        let currentLane = startIndex;
+        let currentY = MARGIN_TOP;
+
+        points.push({ x: LANE_X[currentLane], y: MARGIN_TOP });
+
+        // Iterate through all rungs
+        // Since rungs are sorted by Y, we can just walk down
+        for (const rung of rungs) {
+            if (rung.y < currentY) continue; // Should not happen if sorted and starting from top
+
+            // If this rung connects to our current lane
             if (rung.lane === currentLane) {
-                path.push({ x: currentLane * laneGap + 60, y: rung.y + 40 });
-                currentLane++;
-                path.push({ x: currentLane * laneGap + 60, y: rung.y + 40 });
+                // Move down to rung Y locally
+                points.push({ x: LANE_X[currentLane], y: rung.y });
+                // Move RIGHT to next lane
+                currentLane = currentLane + 1;
+                points.push({ x: LANE_X[currentLane], y: rung.y });
+                currentY = rung.y;
+            } else if (rung.lane === currentLane - 1) {
+                // Move down to rung Y locally
+                points.push({ x: LANE_X[currentLane], y: rung.y });
+                // Move LEFT to prev lane
+                currentLane = currentLane - 1;
+                points.push({ x: LANE_X[currentLane], y: rung.y });
+                currentY = rung.y;
             }
-            // If rung connects current lane to left
-            else if (rung.lane === currentLane - 1) {
-                path.push({ x: currentLane * laneGap + 60, y: rung.y + 40 });
-                currentLane--;
-                path.push({ x: currentLane * laneGap + 60, y: rung.y + 40 });
-            }
-        });
+        }
 
-        path.push({ x: currentLane * laneGap + 60, y: boardHeight + 40 });
-        return { path, endLane: currentLane };
+        // Final drop to bottom
+        points.push({ x: LANE_X[currentLane], y: HEIGHT - MARGIN_BOTTOM });
+
+        return { points, finalIndex: currentLane };
     };
 
     const startBattle = () => {
-        const { path, endLane } = calculatePath(myLane);
-        setFinalPath(path);
+        if (myLane === null) {
+            alert("Please select a starting lane (tap a number at the top)!");
+            return;
+        }
+
+        const { points, finalIndex } = calculatePath(myLane);
+        setPathPoints(points);
         setAnimating(true);
+        setWinner(null);
 
-        // Map endLane to restaurant
-        const resultsIds = sessionData.amidakuji?.results || [];
-        const winningId = resultsIds[endLane];
-        const winner = restaurants.find(r => r.id === winningId) || restaurants[0];
-        setGameResult(winner);
+        // Calculate total length for duration
+        const totalDuration = points.length * 0.3; // 0.3s per segment
 
-        // Animation duration based on path segments
         setTimeout(() => {
             setAnimating(false);
-            setShowRanking(true);
-            onFinish(winner);
-        }, path.length * 500);
+            const wonRestaurant = targets[finalIndex];
+            setWinner(wonRestaurant);
+            onFinish(wonRestaurant);
+        }, totalDuration * 1000);
     };
 
-    const mappedRestaurants = (sessionData.amidakuji?.results || []).map(id =>
-        restaurants.find(r => r.id === id) || { name: '???' }
-    );
-
-    const ranking = sessionData.amidakuji?.ranking || [];
+    // Convert path points to SVG polyline string
+    const polylinePoints = pathPoints.map(p => `${p.x},${p.y}`).join(' ');
 
     return (
-        <div className="flex flex-col items-center">
-            <div className="mb-8 flex gap-4 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-2xl border border-gray-200 dark:border-gray-600">
-                <p className="text-sm font-bold text-gray-500 self-center px-2">Your Starting Lane:</p>
-                {[...Array(numLanes)].map((_, i) => (
-                    <button
-                        key={i}
-                        onClick={() => setMyLane(i)}
-                        disabled={animating}
-                        className={`w-10 h-10 rounded-xl border-2 font-black transition-all ${myLane === i
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 hover:border-blue-400'
-                            } ${animating ? 'cursor-not-allowed opacity-50' : ''}`}
-                    >
-                        {i + 1}
-                    </button>
-                ))}
-            </div>
-
-            <div
-                className="relative bg-white dark:bg-gray-800 p-10 rounded-[2.5rem] shadow-2xl border-4 border-gray-100 dark:border-gray-700 overflow-visible"
-                style={{ width: (numLanes - 1) * laneGap + 120, height: boardHeight + 100 }}
-                onClick={(e) => {
-                    if (animating) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left - 40;
-                    const y = e.clientY - rect.top - 40;
-                    if (y > 10 && y < boardHeight - 10) {
-                        const laneIndex = Math.floor(x / laneGap);
-                        if (laneIndex >= 0 && laneIndex < numLanes - 1) {
-                            addRung(laneIndex, y);
-                        }
-                    }
-                }}
-            >
-                {/* Vertical Lanes */}
-                {[...Array(numLanes)].map((_, i) => (
-                    <div
-                        key={i}
-                        className="absolute bg-gray-200 dark:bg-gray-700 w-1.5 rounded-full"
-                        style={{ left: i * laneGap + 60, top: 40, height: boardHeight }}
-                    />
-                ))}
-
-                {/* Rungs */}
-                {localRungs.map((rung, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ scaleX: 0 }}
-                        animate={{ scaleX: 1 }}
-                        className="absolute h-1.5 bg-blue-500 rounded-full origin-left shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-                        style={{
-                            left: rung.lane * laneGap + 60,
-                            top: rung.y + 40,
-                            width: laneGap
-                        }}
-                    />
-                ))}
-
-                {/* Results at bottom */}
-                <div className="absolute bottom-[20px] left-[20px] right-[20px] flex justify-between pointer-events-none">
-                    {mappedRestaurants.map((r, i) => (
-                        <div key={i} className="flex flex-col items-center w-[60px]">
-                            <div className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-full mb-1 flex items-center justify-center">
-                                <span className="text-yellow-600 text-xs">🎁</span>
-                            </div>
-                            <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 truncate w-full text-center">
-                                {r.name}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Animating Point */}
-                <AnimatePresence>
-                    {animating && (
-                        <motion.div
-                            className="absolute w-6 h-6 bg-yellow-400 rounded-full shadow-[0_0_20px_rgba(250,204,21,1)] z-20 flex items-center justify-center border-2 border-white"
-                            initial={{ x: finalPath[0]?.x + 20, y: finalPath[0]?.y }}
-                            animate={{
-                                x: finalPath.map(p => p.x + 20),
-                                y: finalPath.map(p => p.y)
-                            }}
-                            transition={{ duration: finalPath.length * 0.5, ease: "linear" }}
-                        >
-                            <div className="w-2 h-2 bg-white rounded-full animate-ping" />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            <div className="mt-12 flex gap-4">
+        <div className="flex flex-col items-center w-full h-full max-w-4xl mx-auto">
+            {/* Controls */}
+            <div className="flex gap-4 mb-4 z-10">
                 <button
+                    onClick={() => {
+                        setRungs([]);
+                        generateRungs();
+                        setPathPoints([]);
+                        setWinner(null);
+                        setMyLane(null);
+                    }}
                     disabled={animating}
-                    onClick={() => setLocalRungs([])}
-                    className="px-6 py-4 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-2xl shadow-lg hover:bg-gray-300 transition-all flex items-center gap-2"
+                    className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold rounded-xl shadow hover:bg-gray-300 transition-all"
                 >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    Reset
+                    Reset Board
                 </button>
                 <button
-                    disabled={animating}
                     onClick={startBattle}
-                    className="px-10 py-4 bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 text-white font-black rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={animating || myLane === null}
+                    className="px-8 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all"
                 >
-                    {animating ? (
-                        <>
-                            <div className="w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin" />
-                            Tracing Path...
-                        </>
-                    ) : 'Start Battle! 🚀'}
+                    Start Game
                 </button>
             </div>
 
-            {/* Restaurant Ranking Display */}
-            {showRanking && ranking.length > 0 && (
+            <div className="relative w-full aspect-[3/4] bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden border-4 border-gray-100 dark:border-gray-700">
+                <svg
+                    viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+                    className="w-full h-full cursor-pointer"
+                    onClick={handleSvgClick}
+                    preserveAspectRatio="xMidYMid meet"
+                >
+                    <defs>
+                        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="4" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                    </defs>
+
+                    {/* Lane Lines */}
+                    {LANE_X.map((x, i) => (
+                        <line
+                            key={`lane-${i}`}
+                            x1={x} y1={MARGIN_TOP}
+                            x2={x} y2={HEIGHT - MARGIN_BOTTOM}
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            className="text-gray-300 dark:text-gray-600"
+                            strokeLinecap="round"
+                        />
+                    ))}
+
+                    {/* Rungs */}
+                    {rungs.map((rung, i) => {
+                        const x1 = LANE_X[rung.lane];
+                        const x2 = LANE_X[rung.lane + 1];
+                        return (
+                            <line
+                                key={`rung-${i}`}
+                                x1={x1} y1={rung.y}
+                                x2={x2} y2={rung.y}
+                                stroke="#3B82F6"
+                                strokeWidth="6"
+                                strokeLinecap="round"
+                            />
+                        );
+                    })}
+
+                    {/* Top Buttons (Start Zones) */}
+                    {LANE_X.map((x, i) => (
+                        <g key={`btn-${i}`} onClick={(e) => { e.stopPropagation(); setMyLane(i); }} className="cursor-pointer hover:opacity-80">
+                            <circle
+                                cx={x} cy={MARGIN_TOP - 40} r="25"
+                                fill={myLane === i ? '#2563EB' : '#E5E7EB'}
+                                className="transition-colors duration-200"
+                            />
+                            <text
+                                x={x} y={MARGIN_TOP - 32}
+                                textAnchor="middle"
+                                fill={myLane === i ? 'white' : '#6B7280'}
+                                fontSize="20"
+                                fontWeight="bold"
+                                pointerEvents="none"
+                            >
+                                {i + 1}
+                            </text>
+                        </g>
+                    ))}
+
+                    {/* Bottom Labels (Restaurants) */}
+                    {targets.map((target, i) => (
+                        <g key={`target-${i}`}>
+                            {/* Connector line small */}
+                            <line
+                                x1={LANE_X[i]} y1={HEIGHT - MARGIN_BOTTOM}
+                                x2={LANE_X[i]} y2={HEIGHT - MARGIN_BOTTOM + 20}
+                                stroke="currentColor" strokeWidth="2" className="text-gray-300"
+                            />
+                            <foreignObject x={LANE_X[i] - (LANE_WIDTH / 2)} y={HEIGHT - MARGIN_BOTTOM + 20} width={LANE_WIDTH} height="120">
+                                <div className="flex flex-col items-center justify-start h-full p-1 text-center">
+                                    <div className={`w-8 h-8 rounded-full mb-1 flex items-center justify-center text-lg shadow-sm border-2 ${winner?.id === target.id ? 'bg-yellow-400 border-yellow-600 animate-bounce' : 'bg-white border-gray-200'}`}>
+                                        {winner?.id === target.id ? '🏆' : '🍽️'}
+                                    </div>
+                                    <span className={`text-xs font-bold leading-tight line-clamp-3 ${winner?.id === target.id ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                        {target.name}
+                                    </span>
+                                </div>
+                            </foreignObject>
+                        </g>
+                    ))}
+
+                    {/* Animation Path */}
+                    {animating && (
+                        <>
+                            {/* Trace Line */}
+                            <motion.polyline
+                                points={polylinePoints}
+                                fill="none"
+                                stroke="#FBBF24"
+                                strokeWidth="8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                initial={{ pathLength: 0 }}
+                                animate={{ pathLength: 1 }}
+                                transition={{ duration: pathPoints.length * 0.3, ease: "linear" }}
+                                filter="url(#glow)"
+                            />
+                            {/* Moving Head - We can implement this with purely Framer Motion using a custom component or just rely on the trace line for now as it looks cleaner like a laser. 
+                                Or if the user really wants a "point", we'd need to tween a circle along the path. 
+                                The trace line is usually clearer for Amidakuji. Let's stick to the trace line + a circle at the tip if feasible, but pathLength is easiest.
+                            */}
+                        </>
+                    )}
+                </svg>
+            </div>
+
+            {winner && (
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-8 p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md border-2 border-blue-200 dark:border-blue-800"
+                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl border-4 border-yellow-400 text-center z-50 pointer-events-none"
                 >
-                    <h3 className="text-xl font-bold mb-4 text-center text-gray-900 dark:text-white">
-                        🏆 Restaurant Rankings
-                    </h3>
-                    <div className="space-y-2">
-                        {ranking.map((item, idx) => (
-                            <div
-                                key={item.id}
-                                className={`flex justify-between items-center py-3 px-4 rounded-xl transition-all ${gameResult?.id === item.id
-                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 border-2 border-yellow-400'
-                                    : 'bg-gray-50 dark:bg-gray-700/50'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className={`text-2xl font-black ${idx === 0 ? 'text-yellow-500' :
-                                        idx === 1 ? 'text-gray-400' :
-                                            idx === 2 ? 'text-orange-600' : 'text-gray-500'
-                                        }`}>
-                                        #{idx + 1}
-                                    </span>
-                                    <div>
-                                        <span className="font-bold text-gray-900 dark:text-white">{item.name}</span>
-                                        {gameResult?.id === item.id && (
-                                            <span className="ml-2 text-xs bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full font-bold">
-                                                YOUR PICK
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <span className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                                    {item.votes} {item.votes === 1 ? 'vote' : 'votes'}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+                    <p className="text-gray-500 uppercase tracking-widest font-bold mb-2">The Chosen One</p>
+                    <h2 className="text-4xl font-black text-gray-900 dark:text-white mb-4">{winner.name}</h2>
+                    <p className="text-xl">🎉</p>
                 </motion.div>
             )}
         </div>
