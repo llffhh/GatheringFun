@@ -181,7 +181,115 @@ function App() {
   }, [session?.status, mode]);
 
 
-  // ... (Create Session code unchanged) ...
+  const generateRandomRungs = (numLanes = 5, numRungs = 8) => {
+    const rungs = [];
+    const boardHeight = 320;
+    const minSpacing = 30;
+
+    for (let i = 0; i < numRungs; i++) {
+      const lane = Math.floor(Math.random() * (numLanes - 1));
+      const y = Math.random() * (boardHeight - 2 * minSpacing) + minSpacing;
+      rungs.push({ lane, y: Math.round(y / 20) * 20 });
+    }
+
+    return rungs.sort((a, b) => a.y - b.y);
+  }
+
+  const handleSubmitPreferences = async (preferences) => {
+    if (!session?.id) return;
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'sessions', session.id);
+
+      const updates = {
+        participantPreferences: {
+          [auth.currentUser.uid]: {
+            ...preferences,
+            submittedAt: serverTimestamp()
+          }
+        }
+      };
+
+      // Auto-start swiping phase if I am the host
+      if (session.hostId === auth.currentUser.uid) {
+        updates.status = 'swiping';
+      }
+
+      await setDoc(docRef, updates, { merge: true });
+
+      // OPTIMISTIC UPDATE: Use the preferences we just created to load restaurants immediately
+      // This prevents waiting for the DB listener which might be slow
+      const optimisticSession = {
+        ...session,
+        participantPreferences: {
+          ...session.participantPreferences,
+          [auth.currentUser.uid]: preferences
+        }
+      };
+
+      await loadRestaurants(optimisticSession);
+      setMode('swiping');
+    } catch (error) {
+      console.error('Error submitting preferences:', error);
+      alert('Failed to submit preferences.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const onJoined = async (id, participantPreferences = null) => {
+    setJoinId(id)
+
+    // OPTIMISTIC UPDATE: If we have preferences from the join form, load immediately
+    if (participantPreferences && session) {
+      const optimisticSession = {
+        ...session,
+        participantPreferences: {
+          ...session.participantPreferences,
+          [auth.currentUser.uid]: participantPreferences
+        }
+      };
+      await loadRestaurants(optimisticSession);
+      setMode('swiping');
+    } else {
+      setMode('waiting');
+    }
+  }
+
+
+  const handleCreateSession = async (data) => {
+    console.log('handleCreateSession called with:', data);
+    setLoading(true)
+    try {
+      if (!auth.currentUser) {
+        console.log('Signing in anonymously...');
+        await signInAnonymously(auth);
+        console.log('Signed in as:', auth.currentUser?.uid);
+      }
+
+      const sessionData = {
+        ...data,
+        hostId: auth.currentUser?.uid,
+        status: 'recruiting',
+        createdAt: serverTimestamp(),
+        participants: [auth.currentUser?.uid],
+        waitDeadline: new Date(Date.now() + Number(data.waitMinutes) * 60000)
+      }
+      console.log('Session Data to write:', sessionData);
+
+      const docRef = await addDoc(collection(db, 'sessions'), sessionData)
+      console.log('Session created! ID:', docRef.id);
+
+      setSession({ id: docRef.id, ...sessionData })
+      setMode('created')
+
+    } catch (error) {
+      console.error('Error creating session:', error)
+      alert('Error creating session: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleStartSwiping = async () => {
     if (!session?.id) return;
