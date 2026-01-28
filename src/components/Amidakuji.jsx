@@ -244,12 +244,16 @@ const Amidakuji = ({ sessionId, restaurants, currentUser, sessionData, onFinish 
                                 x2={LANE_X[i]} y2={HEIGHT - MARGIN_BOTTOM + 20}
                                 stroke="currentColor" strokeWidth="2" className="text-gray-300"
                             />
-                            <foreignObject x={LANE_X[i] - (LANE_WIDTH / 2)} y={HEIGHT - MARGIN_BOTTOM + 20} width={LANE_WIDTH} height="120">
+                            <foreignObject x={LANE_X[i] - (LANE_WIDTH / 2) + 2} y={HEIGHT - MARGIN_BOTTOM + 20} width={LANE_WIDTH - 4} height="120">
                                 <div className="flex flex-col items-center justify-start h-full p-1 text-center">
-                                    <div className={`w-8 h-8 rounded-full mb-1 flex items-center justify-center text-lg shadow-sm border-2 ${winner?.id === target.id ? 'bg-yellow-400 border-yellow-600 animate-bounce' : 'bg-white border-gray-200'}`}>
-                                        {winner?.id === target.id ? '🏆' : '🍽️'}
+                                    <div className={`w-12 h-12 rounded-xl mb-1 flex items-center justify-center overflow-hidden shadow-sm border-2 ${winner?.id === target.id ? 'border-yellow-500 ring-2 ring-yellow-300' : 'border-gray-200'}`}>
+                                        {target.photoUrl ? (
+                                            <img src={target.photoUrl} alt={target.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full bg-gray-100 flex items-center justify-center text-xl">🍽️</div>
+                                        )}
                                     </div>
-                                    <span className={`text-xs font-bold leading-tight line-clamp-3 ${winner?.id === target.id ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                    <span className={`text-[10px] font-bold leading-tight line-clamp-2 ${winner?.id === target.id ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                         {target.name}
                                     </span>
                                 </div>
