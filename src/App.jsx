@@ -525,8 +525,17 @@ function App() {
             <button
               onClick={() => {
                 const title = encodeURIComponent(`Gathering: ${session.name}`);
-                const details = encodeURIComponent(`Restaurant: ${session.finalChoice.name}\\nAddress: ${session.finalChoice.address}`);
-                const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${encodeURIComponent(session.finalChoice.address)}`;
+                const details = encodeURIComponent(`Restaurant: ${session.finalChoice.name}\nAddress: ${session.finalChoice.address}`);
+
+                // Format dates for Google Calendar (YYYYMMDD/YYYYMMDD for all-day)
+                // We default to the start date. 
+                const start = session.startDate.replace(/-/g, '');
+                // Calculate next day for end date (Google Calendar all-day events are exclusive of end date)
+                const startDateObj = new Date(session.startDate);
+                startDateObj.setDate(startDateObj.getDate() + 1);
+                const end = startDateObj.toISOString().split('T')[0].replace(/-/g, '');
+
+                const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${encodeURIComponent(session.finalChoice.address)}&dates=${start}/${end}`;
                 window.open(url, '_blank');
               }}
               className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl hover:bg-blue-700 hover:scale-[1.02] transition-all flex items-center justify-center gap-3"
