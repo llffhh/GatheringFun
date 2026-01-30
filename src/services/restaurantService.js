@@ -1,126 +1,151 @@
+/**
+ * Fetches real-time restaurant data using the New Google Places API (v3.56+).
+ * Requires "Places API (New)" and "Maps JavaScript API" to be enabled in Cloud Console.
+ */
+export const fetchRestaurantsLive = async (preferences) => {
+    try {
+        if (!window.google || !window.google.maps) {
+            console.warn("Google Maps SDK not loaded, falling back to mock data");
+            return await fetchRestaurantsMock(preferences);
+        }
+
+        // Import the places library dynamically (v3.56+)
+        // This is the correct way to get the modern Place class
+        const { Place } = await google.maps.importLibrary("places");
+
+        const locations = preferences.locations && preferences.locations.length > 0
+            ? preferences.locations.slice(0, 3)
+            : ['Taiwan'];
+
+        const cuisineQuery = preferences.cuisines?.length > 0
+            ? preferences.cuisines.join(' ')
+            : 'restaurant';
+
+        const allResults = [];
+
+        console.log(`Starting Live Search for: ${cuisineQuery} in ${locations.join(', ')}`);
+
+        // Execute searches for each selected location
+        for (const location of locations) {
+            const request = {
+                textQuery: `${cuisineQuery} in ${location}`,
+                // Fields are camelCase and match property names on the Place instance
+                fields: ['id', 'displayName', 'formattedAddress', 'rating', 'priceLevel', 'photos', 'googleMapsURI'],
+                maxResultCount: 20,
+            };
+
+            try {
+                const { places } = await Place.searchByText(request);
+
+                if (places && places.length > 0) {
+                    const mapped = places.map(place => {
+                        // DEFENSIVE MAPPING for New API (JS SDK)
+                        // displayName can sometimes be an object { text, languageCode } in raw responses, 
+                        // though the SDK property is usually a string.
+                        const name = typeof place.displayName === 'object'
+                            ? place.displayName.text
+                            : (place.displayName || 'Unnamed Restaurant');
+
+                        // priceLevel is an enum: PRICE_LEVEL_INEXPENSIVE, etc.
+                        // We map it to our internal numeric price range (100-1000)
+                        const priceLevels = {
+                            'PRICE_LEVEL_FREE': 0,
+                            'PRICE_LEVEL_INEXPENSIVE': 200,
+                            'PRICE_LEVEL_MODERATE': 400,
+                            'PRICE_LEVEL_EXPENSIVE': 700,
+                            'PRICE_LEVEL_VERY_EXPENSIVE': 1000
+                        };
+                        const priceScore = priceLevels[place.priceLevel] || 400;
+
+                        return {
+                            id: place.id,
+                            name: name,
+                            rating: place.rating || 0,
+                            priceLevel: priceScore,
+                            address: place.formattedAddress || 'Address not available',
+                            cuisine: preferences.cuisines?.[0] || 'Restaurant',
+                            location: location,
+                            mapsUrl: place.googleMapsURI || `https://www.google.com/maps/search/?api=1&query=google_place_id:${place.id}`,
+                            // getURI() is the correct method for v1 Photo objects
+                            photoUrl: place.photos?.[0]?.getURI({ maxWidth: 600, maxHeight: 400 }) || `https://via.placeholder.com/400x300?text=${encodeURIComponent(name)}`,
+                            images: place.photos && place.photos.length > 0
+                                ? place.photos.slice(0, 3).map(p => p.getURI({ maxWidth: 800, maxHeight: 600 }))
+                                : [`https://via.placeholder.com/400x300?text=${encodeURIComponent(name)}`]
+                        };
+                    });
+                    allResults.push(...mapped);
+                }
+            } catch (err) {
+                // If we get PERMISSION_DENIED here, it's likely the API Key or Service settings
+                console.error(`Search failed for ${location}. Error Details:`, err);
+
+                // If it's a permission error, we should probably stop early and use mock
+                if (err.name === 'MapsRequestError' && err.message.includes('PERMISSION_DENIED')) {
+                    throw err; // Caught by the outer catch to trigger mock fallback
+                }
+            }
+        }
+
+        // Deduplicate results by ID
+        const unique = Array.from(new Map(allResults.map(r => [r.id, r])).values());
+
+        if (unique.length === 0) {
+            console.warn('Live Search returned no results. Falling back to mock.');
+            return await fetchRestaurantsMock(preferences);
+        }
+
+        // Final Filter based on Preferences (Rating and Price)
+        const minVal = preferences.minPrice || 0;
+        const maxVal = preferences.maxPrice || 5000;
+
+        const filtered = unique.filter(r =>
+            r.rating >= 4.0 &&
+            r.priceLevel >= minVal &&
+            r.priceLevel <= maxVal
+        );
+
+        console.log(`Process Complete. Found ${unique.length} unique, ${filtered.length} matching preferences.`);
+
+        // Return results (up to 20)
+        return filtered.length > 0 ? filtered.slice(0, 20) : unique.slice(0, 20);
+
+    } catch (error) {
+        console.error("Critical error in fetchRestaurantsLive:", error);
+        return await fetchRestaurantsMock(preferences);
+    }
+};
+
+/**
+ * Fallback Mock Data Service
+ */
 export const fetchRestaurantsMock = (preferences) => {
     return new Promise((resolve) => {
         setTimeout(() => {
             const all = [
-                // Taiwan - Taipei
                 {
-                    id: '1', name: 'Tasty Taiwan', rating: 4.5, priceLevel: 200, address: 'Xinyi District, Taipei', cuisine: 'Taiwanese', location: 'Taipei - Xinyi District (台北市 - 信義區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Tasty+Taiwan+Xinyi+Taipei', photoUrl: 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=Tasty+Taiwan',
-                    images: ['https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=Tasty+Taiwan', 'https://via.placeholder.com/400x300/FF8E8E/FFFFFF?text=Beef+Noodle', 'https://via.placeholder.com/400x300/FFB5B5/FFFFFF?text=Dumplings']
+                    id: 'm1', name: 'Tasty Taiwan (Mock)', rating: 4.5, priceLevel: 200, address: 'Xinyi District, Taipei', cuisine: 'Taiwanese', location: 'Taipei City (台北市) - Xinyi (信義區)',
+                    mapsUrl: '', photoUrl: 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=Tasty+Taiwan',
+                    images: ['https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=Tasty+Taiwan']
                 },
                 {
-                    id: '3', name: 'Gourmet House', rating: 4.8, priceLevel: 350, address: 'Da-an District, Taipei', cuisine: 'Western', location: 'Taipei - Da-an District (台北市 - 大安區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Gourmet+House+Daan+Taipei', photoUrl: 'https://via.placeholder.com/400x300/95E1D3/FFFFFF?text=Gourmet+House',
-                    images: ['https://via.placeholder.com/400x300/95E1D3/FFFFFF?text=Gourmet+House', 'https://via.placeholder.com/400x300/B8F2E6/FFFFFF?text=Steak', 'https://via.placeholder.com/400x300/DBFFF8/FFFFFF?text=Pasta']
+                    id: 'm2', name: 'Malay Feast (Mock)', rating: 4.2, priceLevel: 150, address: 'Bukit Bintang, KL', cuisine: 'Malay', location: 'Kuala Lumpur - Bukit Bintang',
+                    mapsUrl: '', photoUrl: 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Malay+Feast',
+                    images: ['https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Malay+Feast']
                 },
                 {
-                    id: '5', name: 'Zen Garden', rating: 4.6, priceLevel: 250, address: 'Zhongshan District, Taipei', cuisine: 'Japanese', location: 'Taipei - Zhongshan District (台北市 - 中山區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Zen+Garden+Zhongshan+Taipei', photoUrl: 'https://via.placeholder.com/400x300/AA96DA/FFFFFF?text=Zen+Garden',
-                    images: ['https://via.placeholder.com/400x300/AA96DA/FFFFFF?text=Zen+Garden', 'https://via.placeholder.com/400x300/C5B3F0/FFFFFF?text=Sushi', 'https://via.placeholder.com/400x300/E0D0FF/FFFFFF?text=Sashimi']
-                },
-                {
-                    id: '6', name: 'Luxury Dine', rating: 4.9, priceLevel: 800, address: 'Xinyi District, Taipei', cuisine: 'Western', location: 'Taipei - Xinyi District (台北市 - 信義區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Luxury+Dine+Xinyi+Taipei', photoUrl: 'https://via.placeholder.com/400x300/FCBAD3/FFFFFF?text=Luxury+Dine',
-                    images: ['https://via.placeholder.com/400x300/FCBAD3/FFFFFF?text=Luxury+Dine', 'https://via.placeholder.com/400x300/FFD2E5/FFFFFF?text=Lobster', 'https://via.placeholder.com/400x300/FFE9F4/FFFFFF?text=Wine']
-                },
-                {
-                    id: '8', name: 'Noodle Paradise', rating: 4.7, priceLevel: 160, address: 'Songshan District, Taipei', cuisine: 'Chinese', location: 'Taipei - Songshan District (台北市 - 松山區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Noodle+Paradise+Songshan+Taipei', photoUrl: 'https://via.placeholder.com/400x300/A8D8EA/FFFFFF?text=Noodle+Paradise',
-                    images: ['https://via.placeholder.com/400x300/A8D8EA/FFFFFF?text=Noodle+Paradise', 'https://via.placeholder.com/400x300/CBF0FF/FFFFFF?text=Wonton', 'https://via.placeholder.com/400x300/E8F9FF/FFFFFF?text=Soup']
-                },
-                {
-                    id: '9', name: 'Sushi Master', rating: 4.5, priceLevel: 400, address: 'Xinyi District, Taipei', cuisine: 'Japanese', location: 'Taipei - Xinyi District (台北市 - 信義區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Sushi+Master+Xinyi+Taipei', photoUrl: 'https://via.placeholder.com/400x300/FFAAA5/FFFFFF?text=Sushi+Master',
-                    images: ['https://via.placeholder.com/400x300/FFAAA5/FFFFFF?text=Sushi+Master', 'https://via.placeholder.com/400x300/FFC8C4/FFFFFF?text=Rolls', 'https://via.placeholder.com/400x300/FFE6E4/FFFFFF?text=Tempura']
-                },
-                {
-                    id: '11', name: 'Korean BBQ House', rating: 4.6, priceLevel: 300, address: 'Da-an District, Taipei', cuisine: 'Korean', location: 'Taipei - Da-an District (台北市 - 大安區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Korean+BBQ+Daan+Taipei', photoUrl: 'https://via.placeholder.com/400x300/C7CEEA/FFFFFF?text=Korean+BBQ',
-                    images: ['https://via.placeholder.com/400x300/C7CEEA/FFFFFF?text=Korean+BBQ', 'https://via.placeholder.com/400x300/E2E7FF/FFFFFF?text=Beef', 'https://via.placeholder.com/400x300/F0F4FF/FFFFFF?text=Kimchi']
-                },
-                {
-                    id: '12', name: 'Italian Corner', rating: 4.3, priceLevel: 350, address: 'Zhongshan District, Taipei', cuisine: 'Italian', location: 'Taipei - Zhongshan District (台北市 - 中山區)', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Italian+Corner+Zhongshan+Taipei', photoUrl: 'https://via.placeholder.com/400x300/B5EAD7/FFFFFF?text=Italian+Corner',
-                    images: ['https://via.placeholder.com/400x300/B5EAD7/FFFFFF?text=Italian+Corner', 'https://via.placeholder.com/400x300/D6F5EB/FFFFFF?text=Pizza', 'https://via.placeholder.com/400x300/EAFFF9/FFFFFF?text=Pasta']
-                },
-
-                // Taiwan - New Taipei
-                {
-                    id: '20', name: 'Banqiao Burgers', rating: 4.2, priceLevel: 250, address: 'Banqiao District', cuisine: 'Western', location: 'New Taipei - Banqiao District (新北市 - 板橋區)', mapsUrl: '', photoUrl: 'https://via.placeholder.com/400x300/text=Banqiao',
-                    images: ['https://via.placeholder.com/400x300/FF9AA2/FFFFFF?text=Burger', 'https://via.placeholder.com/400x300/FFB7B2/FFFFFF?text=Fries', 'https://via.placeholder.com/400x300/FFDAC1/FFFFFF?text=Coke']
-                },
-
-                // Malaysia - KL
-                {
-                    id: '2', name: 'Malay Feast', rating: 4.2, priceLevel: 150, address: 'Bukit Bintang, KL', cuisine: 'Malay', location: 'Kuala Lumpur - Bukit Bintang', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Malay+Feast+Bukit+Bintang', photoUrl: 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Malay+Feast',
-                    images: ['https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Malay+Feast', 'https://via.placeholder.com/400x300/77DED8/FFFFFF?text=Nasi+Lemak', 'https://via.placeholder.com/400x300/A0EFEA/FFFFFF?text=Satay']
-                },
-                {
-                    id: '10', name: 'Thai Delight', rating: 3.9, priceLevel: 140, address: 'Bukit Bintang, KL', cuisine: 'Thai', location: 'Kuala Lumpur - Bukit Bintang', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Thai+Delight+KL', photoUrl: 'https://via.placeholder.com/400x300/FF8B94/FFFFFF?text=Thai+Delight',
-                    images: ['https://via.placeholder.com/400x300/FF8B94/FFFFFF?text=Thai+Delight', 'https://via.placeholder.com/400x300/FFA5AC/FFFFFF?text=Tom+Yum', 'https://via.placeholder.com/400x300/FFC2C7/FFFFFF?text=Pad+Thai']
-                },
-                {
-                    id: '13', name: 'KLCC Sky Bar', rating: 4.8, priceLevel: 900, address: 'KLCC, KL', cuisine: 'Western', location: 'Kuala Lumpur - KLCC', mapsUrl: '', photoUrl: 'https://via.placeholder.com/400x300/text=SkyBar',
-                    images: ['https://via.placeholder.com/400x300/text=SkyBar', 'https://via.placeholder.com/400x300/text=Cocktail', 'https://via.placeholder.com/400x300/text=View']
-                },
-                {
-                    id: '14', name: 'Bangsar Brunch', rating: 4.5, priceLevel: 300, address: 'Bangsar, KL', cuisine: 'Western', location: 'Kuala Lumpur - Bangsar', mapsUrl: '', photoUrl: 'https://via.placeholder.com/400x300/text=Bangsar',
-                    images: ['https://via.placeholder.com/400x300/text=Bangsar', 'https://via.placeholder.com/400x300/text=Eggs', 'https://via.placeholder.com/400x300/text=Coffee']
-                },
-
-                // Malaysia - Selangor
-                {
-                    id: '4', name: 'Satay Garden', rating: 4.0, priceLevel: 120, address: 'Subang Jaya, Selangor', cuisine: 'Malay', location: 'Selangor - Subang Jaya', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Satay+Garden+Subang+Jaya', photoUrl: 'https://via.placeholder.com/400x300/F38181/FFFFFF?text=Satay+Garden',
-                    images: ['https://via.placeholder.com/400x300/F38181/FFFFFF?text=Satay+Garden', 'https://via.placeholder.com/400x300/F5A2A2/FFFFFF?text=Chicken', 'https://via.placeholder.com/400x300/F7C3C3/FFFFFF?text=Beef']
-                },
-                {
-                    id: '7', name: 'Spice Route', rating: 4.4, priceLevel: 180, address: 'Petaling Jaya, Selangor', cuisine: 'Indian', location: 'Selangor - Petaling Jaya', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=Spice+Route+Petaling+Jaya', photoUrl: 'https://via.placeholder.com/400x300/FFFFD2/333333?text=Spice+Route',
-                    images: ['https://via.placeholder.com/400x300/FFFFD2/333333?text=Spice+Route', 'https://via.placeholder.com/400x300/FFFFA0/333333?text=Curry', 'https://via.placeholder.com/400x300/FFFF70/333333?text=Naan']
-                },
-                {
-                    id: '15', name: 'Klang Bak Kut Teh', rating: 4.7, priceLevel: 150, address: 'Klang, Selangor', cuisine: 'Chinese', location: 'Selangor - Klang', mapsUrl: '', photoUrl: 'https://via.placeholder.com/400x300/text=Klang',
-                    images: ['https://via.placeholder.com/400x300/text=Klang', 'https://via.placeholder.com/400x300/text=Soup', 'https://via.placeholder.com/400x300/text=Herbal']
-                },
+                    id: 'm3', name: 'Ipoh Bean Chicken (Mock)', rating: 4.9, priceLevel: 100, address: 'Ipoh, Perak', cuisine: 'Chinese', location: 'Perak - Ipoh',
+                    mapsUrl: '', photoUrl: 'https://via.placeholder.com/400x300/F38181/FFFFFF?text=Ipoh+Chicken',
+                    images: ['https://via.placeholder.com/400x300/F38181/FFFFFF?text=Ipoh+Chicken']
+                }
             ];
 
-            console.log('Filtering restaurants with:', JSON.stringify(preferences, null, 2));
-
-            // Default safe filtering
             const filtered = all.filter(r => {
-                // 1. Rating
-                if (r.rating < 4.0) return false;
-
-                // 2. Price
                 const min = preferences.minPrice || 0;
                 const max = preferences.maxPrice || 10000;
-                if (r.priceLevel < min || r.priceLevel > max) return false;
-
-                // 3. Location
-                if (preferences.locations && preferences.locations.length > 0) {
-                    const matchesLocation = preferences.locations.some(userLoc => {
-                        // userLoc: "台北市 (Taipei) - 信義區" or "Kuala Lumpur - Bukit Bintang"
-                        // r.location: "Taipei - Xinyi District (台北市 - 信義區)"
-
-                        // Robust Token Matching:
-                        // Extract "meaningful" parts from userLoc (e.g. "信義區", "Bukit Bintang")
-                        // We assume the strict format form HostForm: "City - District"
-                        const parts = userLoc.split(' - ');
-                        const district = parts[parts.length - 1]; // "信義區" or "Bukit Bintang"
-
-                        if (!district) return false;
-
-                        // Check if the restaurant location string contains this district
-                        return r.location.toLowerCase().includes(district.toLowerCase());
-                    });
-                    if (!matchesLocation) return false;
-                }
-
-                // 4. Cuisine
-                if (preferences.cuisines && preferences.cuisines.length > 0) {
-                    // Exact match or partial match? Let's stay strict for cuisine but case-insensitive
-                    const matchesCuisine = preferences.cuisines.some(c =>
-                        r.cuisine.toLowerCase() === c.toLowerCase()
-                    );
-                    if (!matchesCuisine) return false;
-                }
-
-                return true;
+                return r.rating >= 4.0 && r.priceLevel >= min && r.priceLevel <= max;
             });
 
-            console.log(`Matched ${filtered.length} restaurants`);
             resolve(filtered);
-        }, 800);
+        }, 500);
     });
 };

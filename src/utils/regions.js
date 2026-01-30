@@ -1,14 +1,43 @@
 export const REGIONS = {
-    Taiwan: {
-        '台北市 (Taipei)': ['信義區', '大安區', '中山區', '萬華區'],
-        '新北市 (New Taipei)': ['板橋區', '三重區', '中和區', '永和區'],
-        '台中市 (Taichung)': ['西屯區', '北屯區', '南屯區'],
-        '高雄市 (Kaohsiung)': ['左營區', '三民區', '苓雅區']
+    'Malaysia': {
+        'Johor': ['Batu Pahat', 'Johor Bahru', 'Kluang', 'Kota Tinggi', 'Kulai', 'Muar', 'Pasir Gudang', 'Pontian', 'Segamat', 'Skudai'],
+        'Kedah': ['Alor Setar', 'Baling', 'Kubang Pasu', 'Kulim', 'Kuala Muda', 'Langkawi', 'Padang Terap', 'Pendang', 'Sik', 'Sungai Petani', 'Yan'],
+        'Kelantan': ['Bachok', 'Gua Musang', 'Kota Bharu', 'Kuala Krai', 'Machang', 'Pasir Mas', 'Pasir Puteh', 'Tanah Merah', 'Tumpat'],
+        'Kuala Lumpur': ['Bandar Tun Razak', 'Bukit Bintang', 'Cheras', 'Kepong', 'Lembah Pantai', 'Segambut', 'Seputeh', 'Setapak', 'Titiwangsa', 'Wangsa Maju'],
+        'Labuan': ['Labuan Town'],
+        'Melaka': ['Alor Gajah', 'Jasin', 'Melaka City'],
+        'Negeri Sembilan': ['Jelebu', 'Jempol', 'Kuala Pilah', 'Port Dickson', 'Rembau', 'Seremban', 'Tampin'],
+        'Pahang': ['Bentong', 'Cameron Highlands', 'Jerantut', 'Kuala Lipis', 'Kuantan', 'Maran', 'Mentakab', 'Pekan', 'Raub', 'Rompin', 'Temerloh'],
+        'Perak': ['Batu Gajah', 'Bidor', 'Ipoh', 'Kampar', 'Kuala Kangsar', 'Sitiawan', 'Sungai Siput', 'Taiping', 'Tanjung Malim', 'Teluk Intan'],
+        'Perlis': ['Arau', 'Kangar', 'Kuala Perlis', 'Padang Besar'],
+        'Pulau Pinang': ['Bayan Lepas', 'Bukit Mertajam', 'Butterworth', 'Gelugor', 'George Town', 'Kepala Batas', 'Nibong Tebal', 'Seberang Perai'],
+        'Putrajaya': ['Presint 1', 'Presint 2', 'Presint 3', 'Presint 4', 'Presint 5'],
+        'Sabah': ['Keningau', 'Kota Kinabalu', 'Kudat', 'Lahad Datu', 'Papar', 'Penampang', 'Sandakan', 'Semporna', 'Tawau', 'Tuaran'],
+        'Sarawak': ['Bau', 'Bintulu', 'Kapit', 'Kuching', 'Limbang', 'Miri', 'Mukah', 'Sarikei', 'Sibu', 'Sri Aman'],
+        'Selangor': ['Ampang', 'Cyberjaya', 'Kajang', 'Klang', 'Petaling Jaya', 'Puchong', 'Rawang', 'Semenyih', 'Shah Alam', 'Subang Jaya'],
+        'Terengganu': ['Besut', 'Chukai', 'Dungun', 'Jerteh', 'Kemaman', 'Kuala Berang', 'Kuala Terengganu', 'Marang']
     },
-    Malaysia: {
-        'Kuala Lumpur': ['Bukit Bintang', 'KLCC', 'Bangsar', 'Cheras'],
-        'Selangor': ['Petaling Jaya', 'Subang Jaya', 'Shah Alam', 'Klang'],
-        'Penang': ['George Town', 'Bayan Lepas', 'Butterworth'],
-        'Johor': ['Johor Bahru', 'Skudai', 'Mount Austin']
+    'Taiwan': {
+        'Changhua County (彰化縣)': ['Changhua (彰化市)', 'Hehua (和美鎮)', 'Lukang (鹿港鎮)', 'Yuanlin (員林市)'],
+        'Chiayi City (嘉義市)': ['East (東區)', 'West (西區)'],
+        'Chiayi County (嘉義縣)': ['Minxiong (民雄鄉)', 'Puzi (朴子市)', 'Taibao (太保市)'],
+        'Hsinchu City (新竹市)': ['East (東區)', 'North (北區)', 'Xiangshan (香山區)'],
+        'Hsinchu County (新竹縣)': ['Hukou (湖口鄉)', 'Kuanhsi (關西鎮)', 'Xinfeng (新豐鄉)', 'Xinpu (新埔鎮)', 'Zhubei (竹北市)', 'Zhudong (竹東鎮)'],
+        'Hualien County (花蓮縣)': ['Hualien (花蓮市)', 'Ji\'an (吉安鄉)', 'Xincheng (新城鄉)'],
+        'Kaohsiung City (高雄市)': ['Cianjin (前金區)', 'Fongshan (鳳山區)', 'Gushan (鼓山區)', 'Lingya (苓雅區)', 'Nanzih (楠梓區)', 'Sanmin (三民區)', 'Sinsing (新興區)', 'Yancheng (鹽埕區)', 'Zuoying (左營區)'],
+        'Keelung City (基隆市)': ['Anle (安樂區)', 'Nuannuan (暖暖區)', 'Qiandu (七堵區)', 'Ren\'ai (仁愛區)', 'Xinyi (信義區)', 'Zhongshan (中山區)', 'Zhongzheng (中正區)'],
+        'Kinmen County (金門縣)': ['Jincheng (金門鎮)', 'Jinning (金寧鄉)'],
+        'Lienchiang County (連江縣)': ['Beigan (北竿鄉)', 'Nangan (南竿鄉)'],
+        'Nantou County (南投縣)': ['Caotun (草屯鎮)', 'Nantou (南投市)', 'Puli (埔里鎮)'],
+        'New Taipei City (新北市)': ['Banqiao (板橋區)', 'Luzhou (蘆洲區)', 'Sanxia (三峽區)', 'Sanchong (三重區)', 'Tamsui (淡水區)', 'Tucheng (土城區)', 'Wugu (五股區)', 'Xindian (新店區)', 'Xinzhuang (新莊區)', 'Xizhi (汐止區)', 'Yingge (鶯歌區)', 'Yonghe (永和區)', 'Zhonghe (中和區)'],
+        'Penghu County (澎湖縣)': ['Huxi (湖西鄉)', 'Magong (馬公市)'],
+        'Pingtung County (屏東縣)': ['Chaozhou (潮州鎮)', 'Donggang (東港鎮)', 'Pingtung (屏東市)'],
+        'Taichung City (台中市)': ['Beitun (北屯區)', 'Central (中區)', 'Dali (大里區)', 'East (東區)', 'Nantun (南屯區)', 'North (北區)', 'South (南區)', 'Taiping (太平區)', 'West (西區)', 'Xitun (西屯區)'],
+        'Tainan City (台南市)': ['Annan (安南區)', 'Anping (安平區)', 'East (東區)', 'North (北區)', 'South (南區)', 'West Central (中西區)', 'Yongkang (永康區)'],
+        'Taipei City (台北市)': ['Beitou (北投區)', 'Da\'an (大安區)', 'Datong (大同區)', 'Nangang (南港區)', 'Neihu (內湖區)', 'Shilin (士林區)', 'Songshan (松山區)', 'Wanhua (萬華區)', 'Wenshan (萬山區)', 'Xinyi (信義區)', 'Zhongshan (中山區)', 'Zhongzheng (中正區)'],
+        'Taitung County (台東縣)': ['Beinan (卑南鄉)', 'Taitung (台東市)'],
+        'Taoyuan City (桃園市)': ['Bade (八德區)', 'Daxi (大溪區)', 'Dayuan (大園區)', 'Guishan (龜山區)', 'Longtan (龍潭區)', 'Luzhu (蘆竹區)', 'Taoyuan (桃園區)', 'Yangmei (楊梅區)', 'Zhongli (中壢區)'],
+        'Yilan County (宜蘭縣)': ['Luodong (羅東鎮)', 'Su\'ao (蘇澳鎮)', 'Yilan (宜蘭市)'],
+        'Yunlin County (雲林縣)': ['Douliu (斗六市)', 'Huwei (虎尾鎮)', 'Xiluo (西螺鎮)']
     }
 };

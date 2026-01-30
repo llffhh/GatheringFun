@@ -7,7 +7,7 @@ import JoinSession from './components/JoinSession'
 import ParticipantPreferences from './components/ParticipantPreferences'
 import TinderSwiper from './components/TinderSwiper'
 import Amidakuji from './components/Amidakuji'
-import { fetchRestaurantsMock } from './services/restaurantService'
+import { fetchRestaurantsLive } from './services/restaurantService'
 import './App.css'
 
 function App() {
@@ -78,7 +78,7 @@ function App() {
       cuisines: participantPrefs?.cuisines || []
     };
 
-    const data = await fetchRestaurantsMock(filterPrefs);
+    const data = await fetchRestaurantsLive(filterPrefs);
     setRestaurants(data);
     setLoading(false);
   }

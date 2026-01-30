@@ -22,10 +22,13 @@ const HostForm = ({ onSubmit, loading }) => {
         waitMinutes: 10
     });
 
+    const [selectedState, setSelectedState] = useState('');
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         if (name === 'country') {
             setFormData(prev => ({ ...prev, [name]: value, locations: [] }));
+            setSelectedState('');
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
@@ -50,11 +53,11 @@ const HostForm = ({ onSubmit, loading }) => {
         onSubmit(formData);
     };
 
-    const countryRegions = REGIONS[formData.country];
+    const states = Object.keys(REGIONS[formData.country]).sort();
 
     return (
         <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-xl dark:bg-gray-800 transition-all duration-300 text-left">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Start a New Gathering</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center" id="form-title">Start a New Gathering</h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Meeting Name */}
@@ -136,31 +139,70 @@ const HostForm = ({ onSubmit, loading }) => {
                     </div>
                 </div>
 
-                {/* Location Selection */}
+                {/* Hierarchical Location Selection */}
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Locations (Select multiple Districts/Areas)</label>
-                    <div className="max-h-60 overflow-y-auto space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                        {Object.entries(countryRegions).map(([city, districts]) => (
-                            <div key={city}>
-                                <h4 className="text-sm font-bold text-gray-500 mb-2">{city}</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {districts.map(district => (
-                                        <button
-                                            type="button"
-                                            key={district}
-                                            onClick={() => handleMultiSelect('locations', `${city} - ${district}`)}
-                                            className={`px-3 py-1 bg-white dark:bg-gray-700 rounded-md border transition-all text-xs font-medium ${formData.locations.includes(`${city} - ${district}`)
-                                                ? 'border-blue-500 ring-2 ring-blue-500/20 text-blue-600'
-                                                : 'border-gray-200 dark:border-gray-600 text-gray-600'
-                                                }`}
-                                        >
-                                            {district}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Locations (Step 1: Choose State/City)
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-4 max-h-40 overflow-y-auto p-2 border border-gray-100 dark:border-gray-700 rounded-lg">
+                        {states.map(state => (
+                            <button
+                                type="button"
+                                key={state}
+                                onClick={() => setSelectedState(state)}
+                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${selectedState === state
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200'
+                                    }`}
+                            >
+                                {state}
+                            </button>
                         ))}
                     </div>
+
+                    {selectedState && (
+                        <>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Locations (Step 2: Select Districts/Areas in {selectedState})
+                            </label>
+                            <div className="flex flex-wrap gap-2 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/30">
+                                {REGIONS[formData.country][selectedState].map(district => (
+                                    <button
+                                        type="button"
+                                        key={district}
+                                        onClick={() => handleMultiSelect('locations', `${selectedState} - ${district}`)}
+                                        className={`px-3 py-1.5 rounded-md border transition-all text-xs font-medium ${formData.locations.includes(`${selectedState} - ${district}`)
+                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 shadow-sm'
+                                            : 'border-gray-200 dark:border-gray-600 text-gray-600 bg-white dark:bg-gray-800'
+                                            }`}
+                                    >
+                                        {formData.locations.includes(`${selectedState} - ${district}`) && '✓ '}
+                                        {district}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    {formData.locations.length > 0 && (
+                        <div className="mt-4">
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Selected Areas:</label>
+                            <div className="flex flex-wrap gap-2">
+                                {formData.locations.map(loc => (
+                                    <span key={loc} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                                        {loc}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleMultiSelect('locations', loc)}
+                                            className="ml-1.5 inline-flex text-blue-400 hover:text-blue-600"
+                                        >
+                                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"></path></svg>
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Cuisine Selection */}

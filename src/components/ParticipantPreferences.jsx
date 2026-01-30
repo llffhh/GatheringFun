@@ -123,20 +123,34 @@ const ParticipantPreferences = ({ sessionData, onSubmit, loading }) => {
                             </span>
                         )}
                     </label>
-                    <div className="flex flex-wrap gap-2">
-                        {sessionData.locations.map(location => (
-                            <button
-                                type="button"
-                                key={location}
-                                onClick={() => handleMultiSelect('locations', location)}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${preferences.locations.includes(location)
-                                    ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300 scale-105'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
-                                    }`}
-                            >
-                                {preferences.locations.includes(location) && '✓ '}
-                                {location}
-                            </button>
+                    <div className="space-y-4 max-h-80 overflow-y-auto p-4 border border-gray-100 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-900/20">
+                        {Object.entries(
+                            sessionData.locations.reduce((acc, loc) => {
+                                const [state, city] = loc.split(' - ');
+                                if (!acc[state]) acc[state] = [];
+                                acc[state].push({ full: loc, city });
+                                return acc;
+                            }, {})
+                        ).sort(([a], [b]) => a.localeCompare(b)).map(([state, items]) => (
+                            <div key={state} className="space-y-2">
+                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{state}</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {items.map(item => (
+                                        <button
+                                            type="button"
+                                            key={item.full}
+                                            onClick={() => handleMultiSelect('locations', item.full)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${preferences.locations.includes(item.full)
+                                                ? 'bg-green-600 text-white border-green-600 shadow-md scale-105'
+                                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-green-300'
+                                                }`}
+                                        >
+                                            {preferences.locations.includes(item.full) && '✓ '}
+                                            {item.city}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         ))}
                     </div>
                 </div>
