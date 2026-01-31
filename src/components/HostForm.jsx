@@ -9,7 +9,8 @@ const PRICE_RANGES = [
     { label: '$$$$ (Splurge)', value: 4 }
 ];
 
-const HostForm = ({ onSubmit, loading }) => {
+const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft }) => {
+    const [step, setStep] = useState(session ? 2 : 1);
     const [formData, setFormData] = useState({
         name: '',
         nickname: '',
@@ -55,6 +56,55 @@ const HostForm = ({ onSubmit, loading }) => {
     };
 
     const states = Object.keys(REGIONS[formData.country]).sort();
+
+    if (session || step === 2) {
+        return (
+            <div className="max-w-xl mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl text-center text-gray-900 dark:text-white transition-all transform animate-in fade-in zoom-in duration-500">
+                <div className="mb-6 inline-flex items-center justify-center w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h2 className="text-3xl font-black mb-2">Gathering is LIVE!</h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-6 font-medium">
+                    Share the ID below with your friends to start the fun.
+                </p>
+
+                <div className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800 shadow-inner">
+                    <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] mb-1">Phase 1 Time Limit</p>
+                    <p className="text-4xl font-mono font-black text-blue-700 dark:text-blue-300">{timeLeft || '--:--'}</p>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 mb-8 group cursor-pointer hover:border-blue-400 transition-colors"
+                    onClick={() => {
+                        navigator.clipboard.writeText(session?.id);
+                        alert('Session ID copied to clipboard!');
+                    }}>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Click to copy ID</p>
+                    <code className="text-3xl font-mono font-black text-blue-600 dark:text-blue-400 break-all">
+                        {session?.id || '......'}
+                    </code>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                    <button
+                        onClick={() => { setSession(null); setMode('home'); }}
+                        className="w-full py-4 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold rounded-2xl hover:bg-gray-200 transition-all text-sm mb-2"
+                    >
+                        ← Back to Menu
+                    </button>
+
+                    {/* Only show "Start Swiping" for the host */}
+                    {session?.status === 'recruiting' && (
+                        <button
+                            onClick={() => setMode('preferences')}
+                            className="w-full py-5 bg-gradient-to-r from-orange-500 to-red-500 text-white font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-lg"
+                        >
+                            Start Swiping Phase →
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-xl dark:bg-gray-800 transition-all duration-300 text-left">
