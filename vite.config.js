@@ -2,15 +2,37 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-  ],
-  // 這裡的路徑必須與 GitHub 倉庫名一致，通常也就等於你的 package name
-  base: '/GatheringFun/',
-  server: {
-    port: 3000,
-    open: true
+// https://vitejs.dev/config/
+export default defineConfig(({ mode }) => {
+  return {
+    plugins: [
+      react(),
+      tailwindcss(),
+    ],
+    // Automatically sets the base path to '/GatheringFun/' on GitHub Pages
+    // and '/' for local development.
+    base: mode === 'production' ? '/GatheringFun/' : '/',
+
+    server: {
+      port: 3000,
+      open: true,
+      // Ensures the local dev server handles SPA routing correctly
+      historyApiFallback: true,
+    },
+
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      // Ensures the old build is cleaned before every new build
+      emptyOutDir: true,
+      // Optimizes memory usage by splitting the vendor (libraries) code
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'firebase/app', 'firebase/auth', 'firebase/firestore']
+          }
+        }
+      }
+    }
   }
 })
