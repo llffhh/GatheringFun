@@ -8,6 +8,7 @@ const JoinSession = ({ sessionId, onJoined }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [preferences, setPreferences] = useState({
+        nickname: '',
         dates: [],
         timePeriods: [],
         locations: [],
@@ -49,8 +50,8 @@ const JoinSession = ({ sessionId, onJoined }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (preferences.dates.length === 0 || preferences.timePeriods.length === 0 || preferences.locations.length === 0) {
-            alert('Please select at least one date, time period, and location');
+        if (!preferences.nickname || preferences.dates.length === 0 || preferences.timePeriods.length === 0 || preferences.locations.length === 0) {
+            alert('Please fill in all fields including your nickname');
             return;
         }
 
@@ -115,6 +116,19 @@ const JoinSession = ({ sessionId, onJoined }) => {
             <p className="text-gray-500 text-center mb-8 italic">Choose your preferences from the host's list</p>
 
             <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Nickname Selection */}
+                <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Your Nickname
+                    </label>
+                    <input
+                        type="text"
+                        placeholder="Enter your name"
+                        value={preferences.nickname}
+                        onChange={(e) => setPreferences(prev => ({ ...prev, nickname: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                </div>
                 {/* Date Selection */}
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">

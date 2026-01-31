@@ -7,6 +7,7 @@ import JoinSession from './components/JoinSession'
 import ParticipantPreferences from './components/ParticipantPreferences'
 import TinderSwiper from './components/TinderSwiper'
 import Amidakuji from './components/Amidakuji'
+import WaitingRoom from './components/WaitingRoom'
 import { fetchRestaurantsLive } from './services/restaurantService'
 import './App.css'
 
@@ -44,13 +45,13 @@ function App() {
 
           // IMMEDIATE TRANSITION: If I have submitted preferences, go to swiping immediately.
           // This allows asynchronous Phase 2 -> Phase 3 transition as per workflow.
-          if (hasSubmittedPrefs && mode !== 'swiping' && mode !== 'waiting_amidakuji' && mode !== 'amidakuji' && mode !== 'finished') {
+          if (hasSubmittedPrefs && mode !== 'swiping' && mode !== 'created' && mode !== 'waiting_amidakuji' && mode !== 'amidakuji' && mode !== 'waiting_result' && mode !== 'finished') {
             loadRestaurants({ id: snapshot.id, ...data });
             setMode('swiping');
           }
 
           // Global phase transitions (only for phases after swiping)
-          if (data.status === 'amidakuji' && mode !== 'amidakuji') {
+          if (data.status === 'amidakuji' && mode !== 'amidakuji' && mode !== 'waiting_result') {
             setMode('amidakuji')
           }
           if (data.status === 'finished' && mode !== 'finished') {
@@ -281,6 +282,18 @@ function App() {
       console.log('Session created! ID:', docRef.id);
 
       setSession({ id: docRef.id, ...sessionData })
+
+      // Also save host's initial preference entry so nickname exists
+      const docRefUpdate = doc(db, 'sessions', docRef.id);
+      await updateDoc(docRefUpdate, {
+        participantPreferences: {
+          [auth.currentUser.uid]: {
+            nickname: data.nickname,
+            submittedAt: serverTimestamp()
+          }
+        }
+      });
+
       setMode('created')
 
     } catch (error) {
@@ -602,17 +615,12 @@ function App() {
       )}
 
       {mode === 'waiting_result' && (
-        <div className="max-w-xl mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl text-center text-gray-900 dark:text-white mt-12">
-          <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-100 dark:border-red-800">
-            <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Final Countdown</p>
-            <p className="text-5xl font-mono font-black text-red-600 dark:text-red-400 animate-pulse">{timeLeft || '00:00'}</p>
-          </div>
-          <div className="mb-6 inline-flex items-center justify-center w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full text-yellow-600">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          </div>
-          <h2 className="text-3xl font-bold mb-2">Fate Decided!</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-8">Waiting for the timer to end for the Grand Reveal...</p>
-        </div>
+        <WaitingRoom
+          session={session}
+          timeLeft={timeLeft}
+          restaurants={restaurants}
+          currentUser={auth.currentUser}
+        />
       )}
 
       {mode === 'finished' && session?.finalChoice && (

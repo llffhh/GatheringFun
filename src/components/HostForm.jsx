@@ -12,6 +12,7 @@ const PRICE_RANGES = [
 const HostForm = ({ onSubmit, loading }) => {
     const [formData, setFormData] = useState({
         name: '',
+        nickname: '',
         startDate: '',
         endDate: '',
         country: 'Taiwan',
@@ -46,8 +47,8 @@ const HostForm = ({ onSubmit, loading }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!formData.name || !formData.startDate || !formData.endDate || formData.locations.length === 0) {
-            alert('Please fill in required fields, including at least one location');
+        if (!formData.name || !formData.nickname || !formData.startDate || !formData.endDate || formData.locations.length === 0) {
+            alert('Please fill in required fields, including your nickname and at least one location');
             return;
         }
         onSubmit(formData);
@@ -69,6 +70,19 @@ const HostForm = ({ onSubmit, loading }) => {
                         value={formData.name}
                         onChange={handleChange}
                         placeholder="e.g., Friday Dinner Party"
+                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                </div>
+
+                {/* Nickname */}
+                <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Your Nickname</label>
+                    <input
+                        type="text"
+                        name="nickname"
+                        value={formData.nickname}
+                        onChange={handleChange}
+                        placeholder="How should others call you?"
                         className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     />
                 </div>
