@@ -13,16 +13,18 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
     const [step, setStep] = useState(session ? 2 : 1);
     const [formData, setFormData] = useState({
         name: '',
-        nickname: '',
         startDate: '',
         endDate: '',
         country: 'Taiwan',
         locations: [],
         cuisines: [],
+        timePeriods: [],
         minPrice: 100,
         maxPrice: 1000,
         waitMinutes: 10
     });
+
+    const [tempTime, setTempTime] = useState({ start: '', end: '' });
 
     const [selectedState, setSelectedState] = useState('');
 
@@ -46,10 +48,38 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
         });
     };
 
+    const addTimePeriod = () => {
+        if (!tempTime.start || !tempTime.end) {
+            alert('Please select both start and end times');
+            return;
+        }
+        const newPeriod = `${tempTime.start} - ${tempTime.end}`;
+        if (formData.timePeriods.length >= 5) {
+            alert('Maximum 5 time periods allowed');
+            return;
+        }
+        if (formData.timePeriods.includes(newPeriod)) {
+            alert('This time period already exists');
+            return;
+        }
+        setFormData(prev => ({
+            ...prev,
+            timePeriods: [...prev.timePeriods, newPeriod]
+        }));
+        setTempTime({ start: '', end: '' });
+    };
+
+    const removeTimePeriod = (period) => {
+        setFormData(prev => ({
+            ...prev,
+            timePeriods: prev.timePeriods.filter(p => p !== period)
+        }));
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!formData.name || !formData.nickname || !formData.startDate || !formData.endDate || formData.locations.length === 0) {
-            alert('Please fill in required fields, including your nickname and at least one location');
+        if (!formData.name || !formData.startDate || !formData.endDate || formData.locations.length === 0) {
+            alert('Please fill in required fields and select at least one location');
             return;
         }
         onSubmit(formData);
@@ -92,15 +122,14 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
                         ← Back to Menu
                     </button>
 
-                    {/* Only show "Start Swiping" for the host */}
-                    {session?.status === 'recruiting' && (
-                        <button
-                            onClick={() => setMode('preferences')}
-                            className="w-full py-5 bg-gradient-to-r from-orange-500 to-red-500 text-white font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-lg"
-                        >
-                            Start Swiping Phase →
-                        </button>
-                    )}
+                    <button
+                        onClick={() => {
+                            setMode('join');
+                        }}
+                        className="w-full py-5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-lg"
+                    >
+                        Enter Your Name & Preferences →
+                    </button>
                 </div>
             </div>
         );
@@ -120,19 +149,6 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
                         value={formData.name}
                         onChange={handleChange}
                         placeholder="e.g., Friday Dinner Party"
-                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    />
-                </div>
-
-                {/* Nickname */}
-                <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Your Nickname</label>
-                    <input
-                        type="text"
-                        name="nickname"
-                        value={formData.nickname}
-                        onChange={handleChange}
-                        placeholder="How should others call you?"
                         className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     />
                 </div>
@@ -312,6 +328,55 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
                         className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     />
                     <p className="text-xs text-gray-500 mt-1">Wait for participants to join before generating results.</p>
+                </div>
+
+                {/* Time Periods Selection */}
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Specify Gathering Time Slots (Max 5)
+                    </label>
+                    <div className="flex gap-2 mb-4">
+                        <div className="flex-1">
+                            <input
+                                type="time"
+                                value={tempTime.start}
+                                onChange={(e) => setTempTime(prev => ({ ...prev, start: e.target.value }))}
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <div className="flex items-center text-gray-400">to</div>
+                        <div className="flex-1">
+                            <input
+                                type="time"
+                                value={tempTime.end}
+                                onChange={(e) => setTempTime(prev => ({ ...prev, end: e.target.value }))}
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={addTimePeriod}
+                            className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
+                        >
+                            + Add
+                        </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                        {formData.timePeriods.map(period => (
+                            <span key={period} className="inline-flex items-center px-3 py-1.5 rounded-xl text-sm font-bold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200 border border-orange-200 dark:border-orange-800">
+                                <span className="mr-2 italic">🕒</span>
+                                {period}
+                                <button
+                                    type="button"
+                                    onClick={() => removeTimePeriod(period)}
+                                    className="ml-2 inline-flex text-orange-400 hover:text-orange-600"
+                                >
+                                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"></path></svg>
+                                </button>
+                            </span>
+                        ))}
+                    </div>
                 </div>
 
                 <button

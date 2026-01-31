@@ -38,7 +38,7 @@ function App() {
   // Listen for session updates
   useEffect(() => {
     let unsubscribe = () => { }
-    const id = session?.id || (mode === 'waiting' || mode === 'swiping' ? joinId : null)
+    const id = session?.id || (joinId && !['home', 'create', 'join'].includes(mode) ? joinId : null)
 
     if (id) {
       unsubscribe = onSnapshot(doc(db, 'sessions', id), (snapshot) => {
@@ -50,16 +50,36 @@ function App() {
           const hasSubmittedPrefs = data.participantPreferences?.[myUid];
 
           // Phase Control Logic
-          if (hasSubmittedPrefs && mode !== 'swiping' && mode !== 'created' && mode !== 'waiting_amidakuji' && mode !== 'amidakuji' && mode !== 'waiting_result' && mode !== 'finished') {
-            loadRestaurants({ id: snapshot.id, ...data });
-            setMode('swiping');
+          // If the session is still recruiting, stay in the swiping flow
+          if (data.status === 'recruiting') {
+            if (hasSubmittedPrefs && mode !== 'swiping' && mode !== 'waiting_amidakuji') {
+              loadRestaurants({ id: snapshot.id, ...data });
+              setMode('swiping');
+            }
           }
 
-          if (data.status === 'amidakuji' && mode !== 'amidakuji' && mode !== 'waiting_result') {
+          if (data.status === 'amidakuji' && mode !== 'amidakuji' && mode !== 'waiting_result' && mode !== 'finished') {
             setMode('amidakuji')
           }
           if (data.status === 'finished' && mode !== 'finished') {
             setMode('finished')
+          }
+
+          // AUTO-FINISH: If everyone is finished the game, the host triggers the final result immediately
+          const resultsCount = Object.keys(data.amidakujiResults || {}).length;
+          const participantCount = (data.participants || []).length;
+          if (data.status === 'amidakuji' && resultsCount >= participantCount && participantCount > 0) {
+            if (data.hostId === myUid && restaurants.length > 0) {
+              calculateFinalResult(data);
+            }
+          }
+
+          // Ensure restaurants are loaded if we are in an active phase OR if we are the host in 'created' mode
+          const isActiveMode = ['swiping', 'waiting_amidakuji', 'amidakuji', 'waiting_result'].includes(mode);
+          const isHostCreating = (mode === 'created' && data.hostId === myUid);
+
+          if ((isActiveMode || isHostCreating) && restaurants.length === 0) {
+            loadRestaurants(data);
           }
         }
       })
@@ -68,14 +88,24 @@ function App() {
   }, [session?.id, joinId, mode])
 
   const loadRestaurants = async (sessionData) => {
+    if (!sessionData) return;
     setLoading(true);
     const userId = auth.currentUser.uid;
     const participantPrefs = sessionData.participantPreferences?.[userId];
+
+    // If no participant prefs (e.g. Host hasn't joined yet), use global session defaults
+    const locations = (participantPrefs?.locations && participantPrefs.locations.length > 0)
+      ? participantPrefs.locations
+      : sessionData.locations;
+    const cuisines = (participantPrefs?.cuisines && participantPrefs.cuisines.length > 0)
+      ? participantPrefs.cuisines
+      : sessionData.cuisines;
+
     const filterPrefs = {
       minPrice: Number(sessionData.minPrice),
       maxPrice: Number(sessionData.maxPrice),
-      locations: participantPrefs?.locations || [],
-      cuisines: participantPrefs?.cuisines || []
+      locations: locations || [],
+      cuisines: cuisines || []
     };
     const data = await fetchRestaurantsLive(filterPrefs);
     setRestaurants(data);
@@ -93,8 +123,19 @@ function App() {
       if (diff <= 0) {
         setTimeLeft('00:00')
         clearInterval(interval)
-        if (session.hostId === auth.currentUser?.uid && session.status !== 'finished') {
-          calculateFinalResult(session);
+
+        // Timer reached 0: Transition based on current status
+        if (session.hostId === auth.currentUser?.uid) {
+          if (session.status === 'recruiting') {
+            handleStartAmidakuji();
+          } else if (session.status === 'amidakuji' || session.status === 'waiting_result') {
+            // Only calculate if we have restaurants loaded
+            if (restaurants.length > 0) {
+              calculateFinalResult(session);
+            } else {
+              console.warn("Timer reached 0 but restaurants not loaded. Waiting for background sync...");
+            }
+          }
         }
       } else {
         const mins = Math.floor(diff / 60000)
@@ -103,7 +144,7 @@ function App() {
       }
     }, 1000)
     return () => clearInterval(interval)
-  }, [session?.waitDeadline, session?.status])
+  }, [session, mode])
 
   const calculateFinalResult = async (currentSession) => {
     let finalRestaurantId = null;
@@ -115,11 +156,14 @@ function App() {
     });
     const phase3Ranking = Object.keys(phase3Votes)
       .sort((a, b) => phase3Votes[b] - phase3Votes[a])
-      .map(rid => ({
-        id: rid,
-        votes: phase3Votes[rid],
-        name: restaurants.find(r => r.id === rid)?.name
-      }));
+      .map(rid => {
+        const res = restaurants.find(r => r.id === rid);
+        return {
+          id: rid,
+          votes: phase3Votes[rid],
+          name: res?.name || 'Unknown Restaurant'
+        };
+      });
 
     const amidakujiResults = currentSession.amidakujiResults || {};
     const amidakujiVotes = {};
@@ -131,15 +175,38 @@ function App() {
       });
       finalRestaurantId = Object.keys(amidakujiVotes).sort((a, b) => amidakujiVotes[b] - amidakujiVotes[a])[0];
     } else {
-      finalRestaurantId = phase3Ranking[0]?.id || restaurants[0]?.id;
+      finalRestaurantId = phase3Ranking[0]?.id || (restaurants.length > 0 ? restaurants[0].id : null);
     }
 
-    const finalChoice = restaurants.find(r => r.id === finalRestaurantId) || restaurants[0];
+    if (!finalRestaurantId && restaurants.length > 0) finalRestaurantId = restaurants[0].id;
+
+    const finalChoice = restaurants.find(r => r.id === finalRestaurantId) || (restaurants.length > 0 ? restaurants[0] : null);
+
+    // Scheduling Matcher
+    const dateCounts = {};
+    const timeCounts = {};
+    Object.values(currentSession.participantPreferences || {}).forEach(prefs => {
+      (prefs.dates || []).forEach(d => { dateCounts[d] = (dateCounts[d] || 0) + 1; });
+      (prefs.timePeriods || []).forEach(t => { timeCounts[t] = (timeCounts[t] || 0) + 1; });
+    });
+
+    const finalDate = Object.keys(dateCounts).sort((a, b) => dateCounts[b] - dateCounts[a])[0] || currentSession.startDate;
+    const finalTime = Object.keys(timeCounts).sort((a, b) => timeCounts[b] - timeCounts[a])[0] || (currentSession.timePeriods?.[0] || 'TBD');
+
     if (finalChoice) {
       await updateDoc(doc(db, 'sessions', currentSession.id), {
         status: 'finished',
         finalChoice: finalChoice,
-        finalRanking: phase3Ranking
+        finalRanking: phase3Ranking,
+        finalDate: finalDate,
+        finalTime: finalTime
+      });
+    } else {
+      // Emergency fallback to ensure transition happens even if data is corrupted
+      await updateDoc(doc(db, 'sessions', currentSession.id), {
+        status: 'finished',
+        finalDate: finalDate,
+        finalTime: finalTime
       });
     }
   }
@@ -158,13 +225,7 @@ function App() {
       }
       const docRef = await addDoc(collection(db, 'sessions'), sessionData)
       setSession({ id: docRef.id, ...sessionData })
-
-      const docRefUpdate = doc(db, 'sessions', docRef.id);
-      await updateDoc(docRefUpdate, {
-        participantPreferences: {
-          [auth.currentUser.uid]: { nickname: data.nickname, submittedAt: serverTimestamp() }
-        }
-      });
+      setJoinId(docRef.id) // Ensure joinId is set for the invitation screen transitions
       setMode('created')
     } catch (error) {
       console.error('Error creating session:', error)
@@ -173,19 +234,25 @@ function App() {
   }
 
   const handleStartAmidakuji = async () => {
-    if (!session?.id || !session?.restaurantVotes) return;
+    if (!session?.id || session.status === 'amidakuji') return;
     setLoading(true);
     try {
       const voteCounts = {};
-      Object.values(session.restaurantVotes).forEach(likes => {
-        likes.forEach(rid => { voteCounts[rid] = (voteCounts[rid] || 0) + 1; });
-      });
-      const sortedRids = Object.keys(voteCounts).sort((a, b) => voteCounts[b] - voteCounts[a]);
-      const finalTop5Rids = sortedRids.slice(0, 5);
+      if (session.restaurantVotes) {
+        Object.values(session.restaurantVotes).forEach(likes => {
+          likes.forEach(rid => { voteCounts[rid] = (voteCounts[rid] || 0) + 1; });
+        });
+      }
+      const topVotedRids = Object.keys(voteCounts).sort((a, b) => voteCounts[b] - voteCounts[a]);
+      const finalTop5Rids = topVotedRids.slice(0, 5);
+
+      // Fill gaps if fewer than 5 voted or if no votes cast
       while (finalTop5Rids.length < 5 && restaurants.length > finalTop5Rids.length) {
         const fallback = restaurants.find(r => !finalTop5Rids.includes(r.id));
         if (fallback) finalTop5Rids.push(fallback.id); else break;
       }
+
+      // If still fewer than 5 (rare), use whatever we have or mock IDs if needed, but restaurants should have many.
 
       const ranking = finalTop5Rids.map(rid => ({
         id: rid,
@@ -193,20 +260,28 @@ function App() {
         votes: voteCounts[rid] || 0
       }));
 
-      const generateRandomRungs = (numLanes = 5, numRungs = 15) => {
-        const rungs = [];
-        for (let i = 0; i < numRungs; i++) {
-          rungs.push({ lane: Math.floor(Math.random() * (numLanes - 1)), y: 150 + Math.random() * 400 });
-        }
-        return rungs.sort((a, b) => a.y - b.y);
-      }
-
       await updateDoc(doc(db, 'sessions', session.id), {
         status: 'amidakuji',
-        amidakuji: { results: finalTop5Rids, initialRungs: generateRandomRungs(), ranking: ranking }
+        amidakuji: { results: finalTop5Rids, ranking: ranking },
+        waitDeadline: new Date(Date.now() + 180000) // Add 3 minutes for the game
       });
     } catch (error) { console.error('Error starting amidakuji:', error); }
     finally { setLoading(false); }
+  }
+
+  const handleEndVotingEarly = async () => {
+    if (!session?.id || session.status !== 'recruiting') return;
+    setLoading(true);
+    try {
+      // Set the deadline to now, which triggers the timer logic for everyone
+      await updateDoc(doc(db, 'sessions', session.id), {
+        waitDeadline: new Date()
+      });
+    } catch (error) {
+      console.error('Error ending voting early:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -257,7 +332,7 @@ function App() {
       )}
 
       {mode === 'waiting_amidakuji' && (
-        <RestaurantWaitingRoom session={session} timeLeft={timeLeft} currentUser={auth.currentUser} handleStartAmidakuji={handleStartAmidakuji} loading={loading} />
+        <RestaurantWaitingRoom session={session} timeLeft={timeLeft} currentUser={auth.currentUser} handleEndVotingEarly={handleEndVotingEarly} loading={loading} />
       )}
 
       {mode === 'amidakuji' && (

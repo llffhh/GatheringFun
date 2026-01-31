@@ -33,21 +33,24 @@ const Amidakuji = ({ sessionId, restaurants, currentUser, sessionData, onFinish 
         return restaurants[i % restaurants.length] || { name: '???' };
     });
 
-    // Generate random rungs locally
+    // Generate random rungs locally with true vertical randomness
     const generateRungs = () => {
         const newRungs = [];
-        const numRungs = 12 + Math.floor(Math.random() * 8); // 12-20 rungs
+        const gaps = LANE_COUNT - 1;
+        const rungsPerGap = 5;
 
-        for (let i = 0; i < numRungs; i++) {
-            // Pick a random lane (0 to LANE_COUNT-2) because a rung connects i and i+1
-            const lane = Math.floor(Math.random() * (LANE_COUNT - 1));
-            // Pick a random Y
-            const y = RUNG_MIN_Y + Math.random() * (RUNG_MAX_Y - RUNG_MIN_Y);
+        for (let gap = 0; gap < gaps; gap++) {
+            let gapRungs = 0;
+            while (gapRungs < rungsPerGap) {
+                const y = RUNG_MIN_Y + Math.random() * (RUNG_MAX_Y - RUNG_MIN_Y);
 
-            // Avoid overlapping rungs (simple proximity check)
-            const tooClose = newRungs.some(r => Math.abs(r.y - y) < 15);
-            if (!tooClose) {
-                newRungs.push({ lane, y });
+                // Proximity check: prevent rungs from being too close on the SAME gap
+                const tooClose = newRungs.filter(r => r.lane === gap).some(r => Math.abs(r.y - y) < 25);
+
+                if (!tooClose) {
+                    newRungs.push({ lane: gap, y });
+                    gapRungs++;
+                }
             }
         }
         // Important: Sort by Y for path calculation logic

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleStartAmidakuji, loading }) => {
+const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleEndVotingEarly, loading }) => {
     const participants = session.participants || [];
     const preferences = session.participantPreferences || {};
     const votes = session.restaurantVotes || {};
@@ -33,8 +33,8 @@ const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleStartAmid
                         <div
                             key={uid}
                             className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-500 ${hasVoted
-                                    ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800 opacity-100'
-                                    : 'bg-gray-50 dark:bg-gray-900/30 border-transparent opacity-40 grayscale'
+                                ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800 opacity-100'
+                                : 'bg-gray-50 dark:bg-gray-900/30 border-transparent opacity-40 grayscale'
                                 }`}
                         >
                             <div className="flex items-center gap-4">
@@ -68,13 +68,13 @@ const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleStartAmid
 
             {isHost && (
                 <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
-                    <p className="text-sm text-gray-500 mb-4">You can start the game early if you wish!</p>
+                    <p className="text-sm text-gray-500 mb-4">You can end the voting phase early if everyone is ready!</p>
                     <button
-                        onClick={handleStartAmidakuji}
+                        onClick={handleEndVotingEarly}
                         disabled={loading}
                         className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"
                     >
-                        {loading ? 'Initializing...' : 'Start Amidakuji Battle! ⚔️'}
+                        {loading ? 'Processing...' : 'End Voting Phase Early ⚔️'}
                     </button>
                 </div>
             )}

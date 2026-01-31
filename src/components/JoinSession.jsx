@@ -168,20 +168,22 @@ const JoinSession = ({ sessionId, onJoined }) => {
                         )}
                     </label>
                     <div className="flex flex-wrap gap-2">
-                        {['Morning', 'Afternoon', 'Evening', 'Night'].map(period => (
-                            <button
-                                type="button"
-                                key={period}
-                                onClick={() => handleMultiSelect('timePeriods', period)}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${preferences.timePeriods.includes(period)
-                                    ? 'bg-orange-500 text-white shadow-lg ring-2 ring-orange-300 scale-105'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
-                                    }`}
-                            >
-                                {preferences.timePeriods.includes(period) && '✓ '}
-                                {period}
-                            </button>
-                        ))}
+                        {((session.timePeriods && session.timePeriods.length > 0)
+                            ? session.timePeriods
+                            : ['Morning', 'Afternoon', 'Evening', 'Night']).map(period => (
+                                <button
+                                    type="button"
+                                    key={period}
+                                    onClick={() => handleMultiSelect('timePeriods', period)}
+                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${preferences.timePeriods.includes(period)
+                                        ? 'bg-orange-500 text-white shadow-lg ring-2 ring-orange-300 scale-105'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
+                                        }`}
+                                >
+                                    {preferences.timePeriods.includes(period) && '✓ '}
+                                    {period}
+                                </button>
+                            ))}
                     </div>
                 </div>
 

@@ -4,21 +4,22 @@ const FinalResult = ({ session, setMode }) => {
     const { finalChoice, finalRanking, startDate, name } = session;
 
     const handleGoogleMaps = () => {
-        const query = encodeURIComponent(`${finalChoice.name} ${finalChoice.address}`);
-        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
+        const mapsUrl = finalChoice.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${finalChoice.name} ${finalChoice.address}`)}`;
         window.open(mapsUrl, '_blank');
     };
 
     const handleGoogleCalendar = () => {
         const title = encodeURIComponent(`Gathering: ${name}`);
-        const query = `${finalChoice.name} ${finalChoice.address}`;
-        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+        const defaultMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${finalChoice.name} ${finalChoice.address}`)}`;
+        const mapsUrl = finalChoice.mapsUrl || defaultMapsUrl;
         const details = encodeURIComponent(`Restaurant: ${finalChoice.name}\nAddress: ${finalChoice.address}\nMap: ${mapsUrl}`);
 
-        const start = startDate.replace(/-/g, '');
-        const startDateObj = new Date(startDate);
-        startDateObj.setDate(startDateObj.getDate() + 1);
-        const end = startDateObj.toISOString().split('T')[0].replace(/-/g, '');
+        const eventDate = session.finalDate || startDate;
+        const dateStr = eventDate.replace(/-/g, '');
+        // For simplicity, we use the selected date for the event. 
+        // We set it to last for a few hours if no specific end time is parsed, but the winningTime is usually a range.
+        const start = `${dateStr}T120000Z`; // Default to noon UTC if we can't parse exactly
+        const end = `${dateStr}T140000Z`;
 
         const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${encodeURIComponent(finalChoice.address)}&dates=${start}/${end}`;
         window.open(url, '_blank');
@@ -27,7 +28,7 @@ const FinalResult = ({ session, setMode }) => {
     return (
         <div className="max-w-2xl mx-auto p-12 bg-white dark:bg-gray-800 rounded-[3rem] shadow-2xl text-center border-4 border-yellow-400">
             <div className="mb-8">
-                <span className="px-6 py-2 bg-yellow-400 text-yellow-900 text-sm font-black rounded-full uppercase tracking-tighter">Winner Winner Dinner!</span>
+                <span className="px-6 py-2 bg-yellow-400 text-yellow-900 text-sm font-black rounded-full uppercase tracking-tighter">Your Solemate!</span>
             </div>
 
             <h1 className="text-6xl font-black text-gray-900 dark:text-white mb-4">{finalChoice.name}</h1>
@@ -48,10 +49,33 @@ const FinalResult = ({ session, setMode }) => {
                 )}
             </div>
 
-            <div className="bg-gray-50 dark:bg-gray-900/50 p-8 rounded-3xl mb-10 flex flex-col gap-3 border border-gray-100 dark:border-gray-800 shadow-inner">
-                <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500 uppercase font-black tracking-widest text-[10px]">Date Set</span>
-                    <span className="font-bold dark:text-gray-300">{startDate}</span>
+            {/* Winning Schedule Card */}
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-8 rounded-[2rem] mb-10 border border-blue-100/50 dark:border-blue-800/30 shadow-xl relative overflow-hidden group text-left">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                    <span className="text-6xl">🗓️</span>
+                </div>
+                <h3 className="text-gray-400 dark:text-gray-500 uppercase font-black tracking-[0.2em] text-[10px] mb-4 flex items-center gap-2">
+                    Winning Schedule
+                </h3>
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-xl shadow-sm flex items-center justify-center text-xl">📅</div>
+                            <div className="text-left">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase">Selected Date</p>
+                                <p className="font-black text-gray-900 dark:text-white">{session.finalDate || startDate}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-xl shadow-sm flex items-center justify-center text-xl">🕒</div>
+                            <div className="text-left">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase">Selected Time</p>
+                                <p className="font-black text-gray-900 dark:text-white">{session.finalTime || 'TBD'}</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
