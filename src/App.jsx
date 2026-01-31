@@ -228,8 +228,12 @@ function App() {
       setJoinId(docRef.id) // Ensure joinId is set for the invitation screen transitions
       setMode('created')
     } catch (error) {
-      console.error('Error creating session:', error)
-      alert('Error creating session: ' + error.message)
+      console.error('Error creating session:', error);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert("🚨 DEPLOYMENT ERROR: This website is not authorized to use Firebase Authentication.\n\nPlease go to your Firebase Console -> Authentication -> Settings -> Authorized Domains and add 'llffhh.github.io' to the list.");
+      } else {
+        alert("Error creating session: " + error.message);
+      }
     } finally { setLoading(false) }
   }
 

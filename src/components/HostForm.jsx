@@ -78,11 +78,28 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        let finalTimePeriods = [...formData.timePeriods];
+
+        // Auto-add if user filled the time boxes but forgot to click "+ Add"
+        if (tempTime.start && tempTime.end) {
+            const newPeriod = `${tempTime.start} - ${tempTime.end}`;
+            if (!finalTimePeriods.includes(newPeriod) && finalTimePeriods.length < 5) {
+                finalTimePeriods.push(newPeriod);
+            }
+        }
+
         if (!formData.name || !formData.startDate || !formData.endDate || formData.locations.length === 0) {
             alert('Please fill in required fields and select at least one location');
             return;
         }
-        onSubmit(formData);
+
+        if (finalTimePeriods.length === 0) {
+            alert('Please add at least one time period for the gathering');
+            return;
+        }
+
+        onSubmit({ ...formData, timePeriods: finalTimePeriods });
     };
 
     const states = Object.keys(REGIONS[formData.country]).sort();
@@ -356,7 +373,9 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
                         <button
                             type="button"
                             onClick={addTimePeriod}
-                            className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
+                            disabled={!tempTime.start || !tempTime.end}
+                            className={`px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all ${(!tempTime.start || !tempTime.end) ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
                         >
                             + Add
                         </button>
