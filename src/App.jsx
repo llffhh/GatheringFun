@@ -53,11 +53,17 @@ function App() {
           const hasSubmittedPrefs = data.participantPreferences?.[myUid];
 
           // Phase Control Logic
-          // If the session is still recruiting, stay in the swiping flow
           if (data.status === 'recruiting') {
-            if (hasSubmittedPrefs && mode !== 'swiping' && mode !== 'waiting_amidakuji') {
-              loadRestaurants({ id: snapshot.id, ...data });
-              setMode('swiping');
+            if (hasSubmittedPrefs && mode !== 'waiting_amidakuji' && mode !== 'swiping') {
+              if (data.selectionMode === 'custom') {
+                // Skip swiping, go to waiting
+                setRestaurants(data.customRestaurants || []);
+                setMode('waiting_amidakuji');
+              } else {
+                // Normal Preference Search flow
+                loadRestaurants({ id: snapshot.id, ...data });
+                setMode('swiping');
+              }
             }
           }
 
@@ -92,6 +98,12 @@ function App() {
 
   const loadRestaurants = async (sessionData) => {
     if (!sessionData) return;
+
+    if (sessionData.selectionMode === 'custom') {
+      setRestaurants(sessionData.customRestaurants || []);
+      return;
+    }
+
     setLoading(true);
     const userId = auth.currentUser.uid;
     const participantPrefs = sessionData.participantPreferences?.[userId];
@@ -169,7 +181,7 @@ function App() {
     const phase3Ranking = Object.keys(phase3Votes)
       .sort((a, b) => phase3Votes[b] - phase3Votes[a])
       .map(rid => {
-        const res = restaurants.find(r => r.id === rid);
+        const res = restaurants.find(r => r.id === rid) || currentSession.amidakuji?.results?.find(r => r.id === rid);
         return {
           id: rid,
           votes: phase3Votes[rid],
@@ -192,7 +204,9 @@ function App() {
 
     if (!finalRestaurantId && restaurants.length > 0) finalRestaurantId = restaurants[0].id;
 
-    const finalChoice = restaurants.find(r => r.id === finalRestaurantId) || (restaurants.length > 0 ? restaurants[0] : null);
+    // Use metadata from amidakuji results if available
+    const finalChoiceMetadata = currentSession.amidakuji?.results?.find(r => r.id === finalRestaurantId);
+    const finalChoice = finalChoiceMetadata || restaurants.find(r => r.id === finalRestaurantId) || (restaurants.length > 0 ? restaurants[0] : null);
 
     // Scheduling Matcher
     const dateCounts = {};
@@ -253,32 +267,49 @@ function App() {
     if (!session?.id || session.status === 'amidakuji') return;
     setLoading(true);
     try {
+      let finalTop5Rids = [];
       const voteCounts = {};
-      if (session.restaurantVotes) {
-        Object.values(session.restaurantVotes).forEach(likes => {
-          likes.forEach(rid => { voteCounts[rid] = (voteCounts[rid] || 0) + 1; });
-        });
-      }
-      const topVotedRids = Object.keys(voteCounts).sort((a, b) => voteCounts[b] - voteCounts[a]);
-      const finalTop5Rids = topVotedRids.slice(0, 5);
 
-      // Fill gaps if fewer than 5 voted or if no votes cast
-      while (finalTop5Rids.length < 5 && restaurants.length > finalTop5Rids.length) {
-        const fallback = restaurants.find(r => !finalTop5Rids.includes(r.id));
-        if (fallback) finalTop5Rids.push(fallback.id); else break;
+      if (session.selectionMode === 'custom') {
+        finalTop5Rids = session.customRestaurants.map(r => r.id).slice(0, 10);
+      } else {
+        if (session.restaurantVotes) {
+          Object.values(session.restaurantVotes).forEach(likes => {
+            likes.forEach(rid => { voteCounts[rid] = (voteCounts[rid] || 0) + 1; });
+          });
+        }
+        const topVotedRids = Object.keys(voteCounts).sort((a, b) => voteCounts[b] - voteCounts[a]);
+        finalTop5Rids = topVotedRids.slice(0, 5);
+
+        // Fill gaps if fewer than 5 voted or if no votes cast
+        while (finalTop5Rids.length < 5 && restaurants.length > finalTop5Rids.length) {
+          const fallback = restaurants.find(r => !finalTop5Rids.includes(r.id));
+          if (fallback) finalTop5Rids.push(fallback.id); else break;
+        }
       }
 
       // If still fewer than 5 (rare), use whatever we have or mock IDs if needed, but restaurants should have many.
 
-      const ranking = finalTop5Rids.map(rid => ({
-        id: rid,
-        name: restaurants.find(r => r.id === rid)?.name || 'Unknown',
-        votes: voteCounts[rid] || 0
+      const finalTop5 = finalTop5Rids.map(rid => {
+        const res = restaurants.find(r => r.id === rid) || session.customRestaurants?.find(r => r.id === rid);
+        return {
+          id: rid,
+          name: res?.name || 'Unknown',
+          photoUrl: res?.photoUrl || '',
+          address: res?.address || '',
+          images: res?.images || (res?.photoUrl ? [res.photoUrl] : [])
+        };
+      });
+
+      const ranking = finalTop5.map(res => ({
+        id: res.id,
+        name: res.name,
+        votes: voteCounts[res.id] || 0
       }));
 
       await updateDoc(doc(db, 'sessions', session.id), {
         status: 'amidakuji',
-        amidakuji: { results: finalTop5Rids, ranking: ranking },
+        amidakuji: { results: finalTop5, ranking: ranking },
         waitDeadline: new Date(Date.now() + 180000) // Add 3 minutes for the game
       });
     } catch (error) { console.error('Error starting amidakuji:', error); }
@@ -330,8 +361,13 @@ function App() {
       {mode === 'preferences' && (
         <ParticipantPreferences sessionData={session} onSubmit={async (p) => {
           await updateDoc(doc(db, 'sessions', session.id), { [`participantPreferences.${auth.currentUser.uid}`]: { ...p, submittedAt: serverTimestamp() } }, { merge: true });
-          await loadRestaurants({ ...session, participantPreferences: { [auth.currentUser.uid]: p } });
-          setMode('swiping');
+          if (session.selectionMode === 'custom') {
+            setRestaurants(session.customRestaurants || []);
+            setMode('waiting_amidakuji');
+          } else {
+            await loadRestaurants({ ...session, participantPreferences: { [auth.currentUser.uid]: p } });
+            setMode('swiping');
+          }
         }} loading={loading} />
       )}
 

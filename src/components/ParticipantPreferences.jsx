@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const ALL_CUISINES = ['Taiwanese', 'Chinese', 'Western', 'Japanese', 'Korean', 'Thai', 'Indian', 'Italian', 'Malay', 'Nyonya'];
+
 const ParticipantPreferences = ({ sessionData, onSubmit, loading }) => {
     const [preferences, setPreferences] = useState({
         dates: [],
@@ -20,8 +22,11 @@ const ParticipantPreferences = ({ sessionData, onSubmit, loading }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (preferences.dates.length === 0 || preferences.locations.length === 0) {
-            alert('Please select at least one date, time period, and location');
+        const isCustom = sessionData.selectionMode === 'custom';
+        const locationsValid = isCustom || preferences.locations.length > 0;
+
+        if (preferences.dates.length === 0 || !locationsValid) {
+            alert('Please select at least one date, time period, and location (if available)');
             return;
         }
         onSubmit(preferences);
@@ -113,47 +118,49 @@ const ParticipantPreferences = ({ sessionData, onSubmit, loading }) => {
                     </div>
                 </div>
 
-                {/* Location Selection */}
-                <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        Preferred Locations
-                        {preferences.locations.length > 0 && (
-                            <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
-                                {preferences.locations.length} selected
-                            </span>
-                        )}
-                    </label>
-                    <div className="space-y-4 max-h-80 overflow-y-auto p-4 border border-gray-100 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-900/20">
-                        {Object.entries(
-                            sessionData.locations.reduce((acc, loc) => {
-                                const [state, city] = loc.split(' - ');
-                                if (!acc[state]) acc[state] = [];
-                                acc[state].push({ full: loc, city });
-                                return acc;
-                            }, {})
-                        ).sort(([a], [b]) => a.localeCompare(b)).map(([state, items]) => (
-                            <div key={state} className="space-y-2">
-                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{state}</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {items.map(item => (
-                                        <button
-                                            type="button"
-                                            key={item.full}
-                                            onClick={() => handleMultiSelect('locations', item.full)}
-                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${preferences.locations.includes(item.full)
-                                                ? 'bg-green-600 text-white border-green-600 shadow-md scale-105'
-                                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-green-300'
-                                                }`}
-                                        >
-                                            {preferences.locations.includes(item.full) && '✓ '}
-                                            {item.city}
-                                        </button>
-                                    ))}
+                {/* Location Selection - Only show if host provided options */}
+                {sessionData.locations && sessionData.locations.length > 0 && (
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Preferred Locations
+                            {preferences.locations.length > 0 && (
+                                <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
+                                    {preferences.locations.length} selected
+                                </span>
+                            )}
+                        </label>
+                        <div className="space-y-4 max-h-80 overflow-y-auto p-4 border border-gray-100 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-900/20">
+                            {Object.entries(
+                                sessionData.locations.reduce((acc, loc) => {
+                                    const [state, city] = loc.split(' - ');
+                                    if (!acc[state]) acc[state] = [];
+                                    acc[state].push({ full: loc, city });
+                                    return acc;
+                                }, {})
+                            ).sort(([a], [b]) => a.localeCompare(b)).map(([state, items]) => (
+                                <div key={state} className="space-y-2">
+                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{state}</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {items.map(item => (
+                                            <button
+                                                type="button"
+                                                key={item.full}
+                                                onClick={() => handleMultiSelect('locations', item.full)}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${preferences.locations.includes(item.full)
+                                                    ? 'bg-green-600 text-white border-green-600 shadow-md scale-105'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-green-300'
+                                                    }`}
+                                            >
+                                                {preferences.locations.includes(item.full) && '✓ '}
+                                                {item.city}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Cuisine Selection */}
                 <div>
@@ -166,7 +173,7 @@ const ParticipantPreferences = ({ sessionData, onSubmit, loading }) => {
                         )}
                     </label>
                     <div className="flex flex-wrap gap-2">
-                        {sessionData.cuisines.map(cuisine => (
+                        {((sessionData.cuisines && sessionData.cuisines.length > 0) ? sessionData.cuisines : ALL_CUISINES).map(cuisine => (
                             <button
                                 type="button"
                                 key={cuisine}
@@ -190,7 +197,7 @@ const ParticipantPreferences = ({ sessionData, onSubmit, loading }) => {
                     className={`w-full py-4 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mt-4 ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-purple-600'
                         }`}
                 >
-                    {loading ? 'Saving...' : 'Submit Preferences & Start Swiping →'}
+                    {loading ? 'Saving...' : (sessionData.selectionMode === 'custom' ? 'Join Gathering & Wait for Game' : 'Submit Preferences & Start Swiping →')}
                 </button>
             </form>
         </div>

@@ -3,6 +3,8 @@ import { db, auth } from '../lib/firebase';
 import { doc, getDoc, updateDoc, setDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
+const ALL_CUISINES = ['Taiwanese', 'Chinese', 'Western', 'Japanese', 'Korean', 'Thai', 'Indian', 'Italian', 'Malay', 'Nyonya'];
+
 const JoinSession = ({ sessionId, onJoined }) => {
     const [session, setSession] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -50,8 +52,11 @@ const JoinSession = ({ sessionId, onJoined }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!preferences.nickname || preferences.dates.length === 0 || preferences.timePeriods.length === 0 || preferences.locations.length === 0) {
-            alert('Please fill in all fields including your nickname');
+        const isCustom = session.selectionMode === 'custom';
+        const locationsValid = isCustom || preferences.locations.length > 0;
+
+        if (!preferences.nickname || preferences.dates.length === 0 || preferences.timePeriods.length === 0 || !locationsValid) {
+            alert('Please fill in required fields including your nickname and availability');
             return;
         }
 
@@ -187,33 +192,35 @@ const JoinSession = ({ sessionId, onJoined }) => {
                     </div>
                 </div>
 
-                {/* Location Selection */}
-                <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        Preferred Locations
-                        {preferences.locations.length > 0 && (
-                            <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
-                                {preferences.locations.length} selected
-                            </span>
-                        )}
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                        {session.locations.map(location => (
-                            <button
-                                type="button"
-                                key={location}
-                                onClick={() => handleMultiSelect('locations', location)}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${preferences.locations.includes(location)
-                                    ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300 scale-105'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
-                                    }`}
-                            >
-                                {preferences.locations.includes(location) && '✓ '}
-                                {location}
-                            </button>
-                        ))}
+                {/* Location Selection - Only show if host provided options or in preference mode */}
+                {session.locations && session.locations.length > 0 && (
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Preferred Locations
+                            {preferences.locations.length > 0 && (
+                                <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
+                                    {preferences.locations.length} selected
+                                </span>
+                            )}
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {session.locations.map(location => (
+                                <button
+                                    type="button"
+                                    key={location}
+                                    onClick={() => handleMultiSelect('locations', location)}
+                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${preferences.locations.includes(location)
+                                        ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300 scale-105'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
+                                        }`}
+                                >
+                                    {preferences.locations.includes(location) && '✓ '}
+                                    {location}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Cuisine Selection */}
                 <div>
@@ -226,7 +233,7 @@ const JoinSession = ({ sessionId, onJoined }) => {
                         )}
                     </label>
                     <div className="flex flex-wrap gap-2">
-                        {session.cuisines.map(cuisine => (
+                        {((session.cuisines && session.cuisines.length > 0) ? session.cuisines : ALL_CUISINES).map(cuisine => (
                             <button
                                 type="button"
                                 key={cuisine}

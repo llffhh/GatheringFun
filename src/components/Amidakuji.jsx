@@ -13,7 +13,8 @@ const Amidakuji = ({ sessionId, restaurants, currentUser, sessionData, onFinish 
     const HEIGHT = 800; // Increased height to ensure labels fit
     const MARGIN_TOP = 100;
     const MARGIN_BOTTOM = 150; // More space for bottom labels
-    const LANE_COUNT = 5;
+    const resultIds = sessionData.amidakuji?.results || [];
+    const LANE_COUNT = resultIds.length > 0 ? resultIds.length : (restaurants.length > 0 ? restaurants.length : 5);
     // Calculate lane x-coordinates distributed evenly across width
     const LANE_WIDTH = WIDTH / LANE_COUNT;
     const LANE_X = Array.from({ length: LANE_COUNT }, (_, i) => LANE_WIDTH * i + LANE_WIDTH / 2);
@@ -27,8 +28,14 @@ const Amidakuji = ({ sessionId, restaurants, currentUser, sessionData, onFinish 
     // Assuming restaurants passed are exactly 5 or fewer.
     // We map them to the 5 lanes.
     const targets = Array.from({ length: LANE_COUNT }, (_, i) => {
-        // If we have random results from session, use them, otherwise use passed restaurants
-        const resId = sessionData.amidakuji?.results?.[i];
+        // Use the metadata stored in sessionData if available (ensures names/photos are consistent for everyone)
+        const resData = resultIds[i];
+        if (typeof resData === 'object' && resData !== null) {
+            return resData; // resData is { id, name, photoUrl }
+        }
+
+        // Fallback for older sessions or unexpected formats
+        const resId = resData;
         if (resId) return restaurants.find(r => r.id === resId) || { name: '???' };
         return restaurants[i % restaurants.length] || { name: '???' };
     });

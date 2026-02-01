@@ -20,8 +20,14 @@ const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleEndVoting
                 </svg>
             </div>
 
-            <h2 className="text-3xl font-bold mb-2">Votes Being Cast!</h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-8">Waiting for everyone to finish swiping. Next: The Amidakuji Game!</p>
+            <h2 className="text-3xl font-bold mb-2">
+                {session.selectionMode === 'custom' ? 'Gathering Ready!' : 'Votes Being Cast!'}
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 mb-8">
+                {session.selectionMode === 'custom'
+                    ? 'Waiting for the host to start the Amidakuji game!'
+                    : 'Waiting for everyone to finish swiping. Next: The Amidakuji Game!'}
+            </p>
 
             <div className="space-y-4 mb-8">
                 {participants.map(uid => {
@@ -46,7 +52,7 @@ const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleEndVoting
                                 <div className="text-left">
                                     <p className={`font-bold ${isMe ? 'text-blue-600' : ''}`}>{nickname}</p>
                                     <p className="text-[10px] uppercase font-black tracking-widest text-gray-400">
-                                        {hasVoted ? '✅ Ready' : '⏳ Swiping...'}
+                                        {hasVoted ? '✅ Ready' : (session.selectionMode === 'custom' ? '⏳ Waiting' : '⏳ Swiping...')}
                                     </p>
                                 </div>
                             </div>

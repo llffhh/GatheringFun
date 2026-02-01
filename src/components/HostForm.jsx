@@ -21,7 +21,9 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
         timePeriods: [],
         minPrice: 100,
         maxPrice: 1000,
-        waitMinutes: 10
+        waitMinutes: 10,
+        selectionMode: 'preference', // 'preference' or 'custom'
+        customRestaurants: []
     });
 
     const [tempTime, setTempTime] = useState({ start: '', end: '' });
@@ -76,6 +78,53 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
         }));
     };
 
+    const addCustomRestaurant = (place) => {
+        if (formData.customRestaurants.length >= 10) {
+            alert('Maximum 10 restaurants allowed');
+            return;
+        }
+        if (formData.customRestaurants.some(r => r.id === place.place_id)) {
+            alert('This restaurant is already in your list');
+            return;
+        }
+
+        const newRes = {
+            id: place.place_id,
+            name: place.name,
+            address: place.formatted_address || '',
+            photoUrl: place.photos?.[0]?.getUrl() || '',
+            images: place.photos?.map(p => p.getUrl()).slice(0, 5) || []
+        };
+
+        setFormData(prev => ({
+            ...prev,
+            customRestaurants: [...prev.customRestaurants, newRes]
+        }));
+    };
+
+    const removeCustomRestaurant = (resId) => {
+        setFormData(prev => ({
+            ...prev,
+            customRestaurants: prev.customRestaurants.filter(r => r.id !== resId)
+        }));
+    };
+
+    const initAutocomplete = (input) => {
+        if (!input || !window.google) return;
+        const autocomplete = new window.google.maps.places.Autocomplete(input, {
+            types: ['restaurant', 'food', 'cafe'],
+            fields: ['name', 'place_id', 'photos']
+        });
+
+        autocomplete.addListener('place_changed', () => {
+            const place = autocomplete.getPlace();
+            if (place.name) {
+                addCustomRestaurant(place);
+                input.value = '';
+            }
+        });
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
 
@@ -89,8 +138,18 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
             }
         }
 
-        if (!formData.name || !formData.startDate || !formData.endDate || formData.locations.length === 0) {
+        if (formData.selectionMode === 'preference' && (!formData.name || !formData.startDate || !formData.endDate || formData.locations.length === 0)) {
             alert('Please fill in required fields and select at least one location');
+            return;
+        }
+
+        if (formData.selectionMode === 'custom' && (!formData.name || !formData.startDate || !formData.endDate)) {
+            alert('Please fill in basic gathering details');
+            return;
+        }
+
+        if (formData.selectionMode === 'custom' && formData.customRestaurants.length === 0) {
+            alert('Please add at least one restaurant to your custom list');
             return;
         }
 
@@ -156,6 +215,27 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
         <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-xl dark:bg-gray-800 transition-all duration-300 text-left">
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center" id="form-title">Start a New Gathering</h2>
 
+            <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-2xl mb-8">
+                <button
+                    onClick={() => setFormData(prev => ({ ...prev, selectionMode: 'preference' }))}
+                    className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${formData.selectionMode === 'preference'
+                        ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-md ring-1 ring-black/5'
+                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                >
+                    📍 Preference Search
+                </button>
+                <button
+                    onClick={() => setFormData(prev => ({ ...prev, selectionMode: 'custom' }))}
+                    className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${formData.selectionMode === 'custom'
+                        ? 'bg-white dark:bg-gray-800 text-purple-600 shadow-md ring-1 ring-black/5'
+                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                >
+                    ✨ Custom List
+                </button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Meeting Name */}
                 <div>
@@ -194,144 +274,153 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
                     </div>
                 </div>
 
-                {/* Country & Price */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Country</label>
-                        <select
-                            name="country"
-                            value={formData.country}
-                            onChange={handleChange}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        >
-                            <option value="Taiwan">Taiwan</option>
-                            <option value="Malaysia">Malaysia</option>
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Min Price</label>
-                            <input
-                                type="number"
-                                name="minPrice"
-                                value={formData.minPrice}
-                                onChange={handleChange}
-                                min="100"
-                                max="1000"
-                                className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            />
+                {/* Dynamic Content based on Mode */}
+                {formData.selectionMode === 'preference' ? (
+                    <>
+                        {/* Country & Price */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Country</label>
+                                <select
+                                    name="country"
+                                    value={formData.country}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                >
+                                    <option value="Taiwan">Taiwan</option>
+                                    <option value="Malaysia">Malaysia</option>
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Min Price</label>
+                                    <input
+                                        type="number"
+                                        name="minPrice"
+                                        value={formData.minPrice}
+                                        onChange={handleChange}
+                                        min="100"
+                                        max="1000"
+                                        className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Price</label>
+                                    <input
+                                        type="number"
+                                        name="maxPrice"
+                                        value={formData.maxPrice}
+                                        onChange={handleChange}
+                                        min="100"
+                                        max="1000"
+                                        className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                            </div>
                         </div>
+
+                        {/* Hierarchical Location Selection */}
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Max Price</label>
-                            <input
-                                type="number"
-                                name="maxPrice"
-                                value={formData.maxPrice}
-                                onChange={handleChange}
-                                min="100"
-                                max="1000"
-                                className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Hierarchical Location Selection */}
-                <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        Locations (Step 1: Choose State/City)
-                    </label>
-                    <div className="flex flex-wrap gap-2 mb-4 max-h-40 overflow-y-auto p-2 border border-gray-100 dark:border-gray-700 rounded-lg">
-                        {states.map(state => (
-                            <button
-                                type="button"
-                                key={state}
-                                onClick={() => setSelectedState(state)}
-                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${selectedState === state
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200'
-                                    }`}
-                            >
-                                {state}
-                            </button>
-                        ))}
-                    </div>
-
-                    {selectedState && (
-                        <>
                             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                Locations (Step 2: Select Districts/Areas in {selectedState})
+                                Locations (Step 1: Choose State/City)
                             </label>
-                            <div className="flex flex-wrap gap-2 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/30">
-                                {REGIONS[formData.country][selectedState].map(district => (
+                            <div className="flex flex-wrap gap-2 mb-4 max-h-40 overflow-y-auto p-2 border border-gray-100 dark:border-gray-700 rounded-lg">
+                                {states.map(state => (
                                     <button
                                         type="button"
-                                        key={district}
-                                        onClick={() => handleMultiSelect('locations', `${selectedState} - ${district}`)}
-                                        className={`px-3 py-1.5 rounded-md border transition-all text-xs font-medium ${formData.locations.includes(`${selectedState} - ${district}`)
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 shadow-sm'
-                                            : 'border-gray-200 dark:border-gray-600 text-gray-600 bg-white dark:bg-gray-800'
+                                        key={state}
+                                        onClick={() => setSelectedState(state)}
+                                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${selectedState === state
+                                            ? 'bg-blue-600 text-white shadow-md'
+                                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200'
                                             }`}
                                     >
-                                        {formData.locations.includes(`${selectedState} - ${district}`) && '✓ '}
-                                        {district}
+                                        {state}
                                     </button>
                                 ))}
                             </div>
-                        </>
-                    )}
 
-                    {formData.locations.length > 0 && (
-                        <div className="mt-4">
-                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Selected Areas:</label>
+                            {selectedState && (
+                                <>
+                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                        Locations (Step 2: Select Districts/Areas in {selectedState})
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/30">
+                                        {REGIONS[formData.country][selectedState].map(district => (
+                                            <button
+                                                type="button"
+                                                key={district}
+                                                onClick={() => handleMultiSelect('locations', `${selectedState} - ${district}`)}
+                                                className={`px-3 py-1.5 rounded-md border transition-all text-xs font-medium ${formData.locations.includes(`${selectedState} - ${district}`)
+                                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 shadow-sm'
+                                                    : 'border-gray-200 dark:border-gray-600 text-gray-600 bg-white dark:bg-gray-800'
+                                                    }`}
+                                            >
+                                                {formData.locations.includes(`${selectedState} - ${district}`) && '✓ '}
+                                                {district}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Cuisine Selection */}
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Preferred Cuisines
+                            </label>
                             <div className="flex flex-wrap gap-2">
-                                {formData.locations.map(loc => (
-                                    <span key={loc} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
-                                        {loc}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleMultiSelect('locations', loc)}
-                                            className="ml-1.5 inline-flex text-blue-400 hover:text-blue-600"
-                                        >
-                                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"></path></svg>
-                                        </button>
-                                    </span>
+                                {CUISINES.map(cuisine => (
+                                    <button
+                                        type="button"
+                                        key={cuisine}
+                                        onClick={() => handleMultiSelect('cuisines', cuisine)}
+                                        className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${formData.cuisines.includes(cuisine)
+                                            ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300 scale-105'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
+                                            }`}
+                                    >
+                                        {formData.cuisines.includes(cuisine) && '✓ '}
+                                        {cuisine}
+                                    </button>
                                 ))}
                             </div>
                         </div>
-                    )}
-                </div>
-
-                {/* Cuisine Selection */}
-                <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        Preferred Cuisines
-                        {formData.cuisines.length > 0 && (
-                            <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                                {formData.cuisines.length} selected
-                            </span>
+                    </>
+                ) : (
+                    <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-800">
+                        <label className="block text-sm font-black text-purple-700 dark:text-purple-300 uppercase tracking-widest mb-4">
+                            Manual Restaurant Selection (Max 10)
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Search restaurant to add..."
+                            ref={(el) => initAutocomplete(el)}
+                            className="w-full px-4 py-4 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white mb-4 shadow-sm"
+                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {formData.customRestaurants.map(res => (
+                                <div key={res.id} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100 dark:border-gray-700 group">
+                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                        {res.photoUrl ? <img src={res.photoUrl} className="w-full h-full object-cover" /> : <span className="m-auto text-xl italic">🍽️</span>}
+                                    </div>
+                                    <span className="flex-1 text-sm font-bold truncate dark:text-gray-200">{res.name}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeCustomRestaurant(res.id)}
+                                        className="text-red-400 hover:text-red-600 p-1"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        {formData.customRestaurants.length === 0 && (
+                            <p className="text-center text-sm text-purple-400 py-4 italic">No restaurants added yet. Type above to search!</p>
                         )}
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                        {CUISINES.map(cuisine => (
-                            <button
-                                type="button"
-                                key={cuisine}
-                                onClick={() => handleMultiSelect('cuisines', cuisine)}
-                                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${formData.cuisines.includes(cuisine)
-                                    ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300 scale-105'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105 dark:bg-gray-700 dark:text-gray-300'
-                                    }`}
-                            >
-                                {formData.cuisines.includes(cuisine) && '✓ '}
-                                {cuisine}
-                            </button>
-                        ))}
                     </div>
-                    {formData.cuisines.length === 0 && (
-                        <p className="text-xs text-gray-500 mt-2 italic">Click to select multiple cuisines (optional)</p>
-                    )}
-                </div>
+                )}
 
                 {/* Wait Duration */}
                 <div>
