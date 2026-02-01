@@ -1,5 +1,22 @@
 # GatheringFun - Workflow Changes Summary
 
+## [2025-02-01] Custom Restaurant Selection & Metadata Sync
+**Goal**: Allow hosts to manually pick restaurants and skip swiping, while fixing missing images for participants.
+
+### 1. Multi-Mode Flow
+- **Selection Mode**: Introduced `selectionMode` ('preference' vs 'custom') in the Session document.
+- **Dynamic Transition**: If 'custom', Phase 3 (swiping) is completely bypassed. Participants go from Phase 2 (availability) directly to the game waiting room.
+
+### 2. Custom List Management
+- **Implementation**: Integrated Google Places Autocomplete in the Host Form to allow manual selection of up to 10 specific restaurants.
+- **Data Preservation**: Captured address and image arrays immediately during host selection to prevent re-fetching errors later.
+
+### 3. Metadata Locking Strategy
+- **Fix**: When the Game/Amidakuji starts, the system now "locks" the winning restaurant metadata (Name, Address, Photos) into the Firestore session data.
+- **Consistency**: 100% visibility for participants, regardless of their local Google API search results.
+
+---
+
 ## Critical Updates to Implementation Plan
 
 ### Phase 2 → Phase 3 Transition

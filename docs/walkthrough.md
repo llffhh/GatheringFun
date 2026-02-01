@@ -6,29 +6,31 @@ I have completed the core implementation of the **GatheringFun** project, incorp
 
 ### 1. Session Setup (Host Flow)
 - **High-Aesthetic Form**: Hosts can create a session with a custom name, date range, country (Taiwan/Malaysia), and specific region/cuisine preferences.
+- **Dual Selection Modes**: 
+    - **Preference Search (AI)**: Automatically finds restaurants based on group filters.
+    - **Custom List**: Host manually searches and picks up to 10 specific restaurants using Google Places.
 - **Filters**: Added **Price Range** (min/max) and **Waiting Duration** to control the flow.
 - **Firebase Sync**: Sessions are saved in Firestore with unique IDs.
 
 ### 2. Participant Preference Collection
 - **Join via ID/Link**: Participants can join a session and select their preferred dates, locations, and cuisines.
-- **Optimized Transition**: Fixed issue where participants would get stuck; system now intelligently filters mock data to ensure valid matches.
-- **Real-time Countdown**: A live timer signals when voting begins.
+- **Context-Aware Flow**: If the host chose **Custom List**, the app automatically skips the swiping phase for all participants after they submit their availability.
+- **Optimized Transition**: Fixed issue where participants would get stuck; system now intelligently filters data to ensure valid matches.
 
-### 3. Tinder-Style Swiping
+### 3. Tinder-Style Swiping (Preference Mode Only)
 - **Restaurant Candidates**: Automatically fetched based on the group's collective preferences (Price, Location, Cuisine).
 - **Smooth Swiping**: Framer Motion integration for "Left/Pass" and "Right/Like" gestures.
-- **Robust Error Handling**: Added alerts if network issues prevent vote submission.
 - **Google Maps Integration**: Direct links to view restaurant details.
 
-### 4. Amidakuji (Ghost Leg) Game - **REFACTORED**
-- **SVG-Based Engine**: Completely rewritten using SVG for perfect responsiveness and precision.
-- **Independent State**: Each user plays their own "fate" game. Clicking **Reset Board** generates a unique random ladder layout locally.
-- **Precision Animation**: The "light point" now traces the path exactly along the lines.
-- **Visual Polish**: Restaurant images are displayed at the bottom of the ladder for a premium feel.
-- **User Agency**: Participants pick their own starting lane to reveal their personal result.
+### 4. Amidakuji (Ghost Leg) Game
+- **SVG-Based Engine**: Custom-built using SVG for perfect responsiveness and precision.
+- **Dynamic Lane Support**: Automatically adjusts the ladder from 2 to 10 lanes based on the number of restaurants.
+- **Network Metadata Sync**: Ensures all participants see the same restaurant names and photos, even if their local Google search results differ.
+- **Precision Animation**: The "light point" traces the path exactly along the lines to the winner.
 
 ### 5. Final Result & Sync
-- **Winning Reveal**: Grand reveal of the final restaurant and date.
+- **Winning Reveal**: Grand reveal of the final restaurant, date, and time.
+- **Metadata Persistence**: The winner's full image gallery, address, and Google Maps link are preserved for all users.
 - **Calendar Integration**: A one-click button to add the gathering to Google Calendar with all details.
 
 ## Recent Fixes & Improvements

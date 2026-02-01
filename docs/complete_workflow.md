@@ -12,15 +12,15 @@ A collaborative restaurant decision-making app with 5 phases, using gamification
 1. Host fills out the gathering form:
    - Gathering name
    - Date range (start date to end date)
-   - Country selection (Taiwan/Malaysia)
-   - Multiple location selections (districts/areas)
-   - Multiple cuisine preferences
-   - Price range (min-max in TWD/MYR)
+   - **Selection Mode**:
+     - **Preference Search**: (Default) Filters by Location, Cuisine, and Price.
+     - **Custom List**: Host manually searches and adds specific restaurants.
    - Wait duration (minutes for Phase 3 waiting period)
 
 2. System creates a session in Firestore with:
    - Unique session ID
-   - Host preferences as "available options"
+   - `selectionMode`: `'preference'` or `'custom'`
+   - `customRestaurants`: (If custom mode) [{id, name, address, photoUrl, images}]
    - Status: `recruiting`
 
 3. Host receives shareable session ID/link
@@ -34,100 +34,41 @@ A collaborative restaurant decision-making app with 5 phases, using gamification
 
 **Actions**:
 1. Each participant sees a preference selection form with:
-   - **Dates**: Multi-select from host's date range (display with day of week: "Mon, Jan 25", "Tue, Jan 26", etc.)
-   - **Locations**: Multi-select from host's selected locations
-   - **Cuisines**: Multi-select from host's selected cuisines
+   - **Dates**: Multi-select from host's date range.
+   - **Locations**: (Preference Mode only) Multi-select from host's selected locations.
+   - **Cuisines**: Multi-select or choose from a default list.
 
-2. Each participant submits their preferences to Firestore:
-   ```
-   sessions/{sessionId}/participantPreferences/{userId}: {
-     dates: [...],
-     locations: [...],
-     cuisines: [...]
-   }
-   ```
-
-**Transition Trigger**: 
-- **Immediate** - as soon as participant clicks "Submit Preferences"
-- No waiting room, no timer
+2. Each participant submits their preferences to Firestore.
 
 **Transition Logic**:
-- Save participant's preferences to Firestore
-- Immediately transition that participant to Phase 3 (swiping)
-- Other participants can still be in Phase 2 (asynchronous)
+- **Preference Mode**: Immediately transition that participant to Phase 3 (swiping).
+- **Custom Mode**: Immediately transition that participant to the Waiting Room (skips swiping).
 
 ---
 
-## Phase 3: Restaurant Swiping (Tinder-style)
+## Phase 3: Restaurant Swiping (Preference Mode Only)
 **Who**: All participants
 
 **Actions**:
-1. Each participant sees restaurant cards filtered by:
-   - Their own selected preferences (dates, locations, cuisines)
-   - Host's price range
-   - **4 stars and above rating**
-
-2. Restaurant cards show:
-   - Restaurant name, image, address
-   - Rating, price level, cuisine type
-   - **Google Maps link** for further checking
-   - Swipe right (like ✓) or left (dislike ✗)
-
-3. Votes saved to Firestore:
-   ```
-   sessions/{sessionId}/restaurantVotes/{userId}: [restaurantId1, restaurantId2, ...]
-   ```
-
-4. Participants who finish swiping see "Waiting for others..." screen with countdown timer
+1. Card-based swiping using Google Places API results.
+2. Votes saved to Firestore.
 
 **Transition Trigger**:
-- **Timer expires** (wait duration from Phase 1) OR
-- Host manually triggers "Start Amidakuji Battle" button
-
-**Transition Logic**:
-- Aggregate all votes
-- Select Top 5 most-voted restaurants
-- **Generate random initial rungs** for the Amidakuji ladder
-- Initialize Amidakuji game → Phase 4
+- Host manually triggers "Start Game" or Timer expires.
 
 ---
 
 ## Phase 4: Amidakuji (Ghost Leg) Game
-**Who**: All participants (equal access, no host privileges)
+**Who**: All participants
 
 **Setup**:
-- 5 vertical lanes (one for each top restaurant)
-- Bottom of each lane shows a restaurant name/icon
-- **Random rungs pre-generated** at initialization
+- **Dynamic Lanes**: 2 to 10 lanes based on the number of finalists (Top 5 in Preference mode, or all selected in Custom mode).
+- **Shared Metadata**: Metadata (names/photos) is pulled from Firestore to ensure consistency.
 
 **Actions**:
-1. **Initial State**:
-   - System generates random rungs when Phase 4 starts
-   - All participants see the same initial ladder configuration
-
-2. **Individual Rung Placement** (NOT synced):
-   - Each participant can add their own rungs locally
-   - Rungs are **NOT synced** across participants
-   - Each participant has their own version of the ladder
-
-3. **Lane Selection**:
-   - Each participant selects their starting lane (1-5)
-   - Lane selection is personal (not visible to others)
-
-4. **Start Battle**:
-   - Each participant clicks their own "Start Battle!" button
-   - Path animation shows their light point following their ladder
-   - Calculates which restaurant they land on
-
-5. **Result Display**:
-   - Show the participant's winning restaurant
-   - **Display ranking of all 5 restaurants** based on aggregated votes from Phase 3
-   - Ranking syncs in real-time across all participants
-   - Format: "1st: Restaurant A (15 votes), 2nd: Restaurant B (12 votes)..." etc.
-
-**No Host Controls**: All participants have equal access, no special host buttons
-
-**Transition**: Each participant sees their result → Phase 5
+1. **Interactive Path**: Participants pick their starting lane.
+2. **Deterministic Fairness**: The system generates a fair ladder for everyone.
+3. **Real-time Sync**: Winner and ranking are shared across all devices.
 
 ---
 
