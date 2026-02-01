@@ -80,3 +80,56 @@ npm run dev
 
 ## 📄 License
 This project is for personal use and portfolio demonstration. Feel free to explore and build upon the logic!
+
+---
+
+## 🗺️ Application Logic Flow
+
+```mermaid
+graph TD
+    %% Phase 1: Creation
+    Start([User Opens App]) --> Home{Home View}
+    Home -->|Create| HostForm[Host: Fill Details & Wait Duration]
+    HostForm --> CreateSession[Firebase: Session Created status='recruiting']
+    HostSession[Host: Invitation Screen / Share ID]
+    CreateSession --> HostSession
+
+    %% Sharing logic
+    HostSession -.->|Share link via WhatsApp/LINE| Participants
+    
+    %% Phase 2: Joining
+    Participants[Participants: Open Link] --> JoinSession[Join Session: Fill Nickname & Avails]
+    JoinSession --> SwipePhase[Swiping Phase: Vote for Restaurants]
+    SwipePhase --> SwipeFinished[Swipe Finished]
+    SwipeFinished --> WaitAmidakuji[Restaurant Waiting Room status='recruiting']
+
+    %% Phase 3: Transition to Amidakuji
+    HostSession --> RecruitingWait{Timer Ends or End Early?}
+    WaitAmidakuji --> RecruitingWait
+    RecruitingWait -->|YES| StartAmidakuji[App Core: Start Amidakuji Game status='amidakuji']
+    
+    %% Notification logic
+    StartAmidakuji -.->|Browser Notification| NotifyStart["Time's Up! Game Starting"]
+
+    %% Phase 4: Amidakuji Game
+    StartAmidakuji --> AmidakujiGame[Everyone: Play Amidakuji Game]
+    AmidakujiGame --> AmidakujiFinished[Game Finished: Mode: waiting_result]
+    AmidakujiFinished --> ResultsWaiting[Waiting Room status='amidakuji']
+
+    %% Phase 5: Finalization
+    ResultsWaiting --> AllFinished{All Participants Done or Timer Ends?}
+    AllFinished -->|YES| CalcResult[App Core: Calculate Final Result status='finished']
+    
+    %% Notification logic
+    CalcResult -.->|Browser Notification| NotifyFinish["Fate Decided! See results"]
+
+    %% Final Phase
+    CalcResult --> FinalResultView[Final Result Screen: Winner & Schedule]
+    FinalResultView -->|Share Result| LineWhatsApp[Social Share: WhatsApp / LINE]
+
+    %% Styling
+    style Start fill:#f9f,stroke:#333,stroke-width:2px
+    style FinalResultView fill:#ff9,stroke:#333,stroke-width:4px
+    style NotifyStart fill:#f66,stroke:#333,stroke-width:2px
+    style NotifyFinish fill:#f66,stroke:#333,stroke-width:2px
+```
