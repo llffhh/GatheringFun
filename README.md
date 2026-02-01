@@ -2,6 +2,15 @@
 
 **GatheringFun** is a modern, real-time web application designed to help friends decide where and when to eat without the stress of endless group chat debates. Combining Tinder-style swiping with the classic Amidakuji (Ghost Leg) decision game, it turns organizing a dinner party into a fun, interactive experience.
 
+<p align="center">
+  <img src="docs/assets/banner.png" alt="GatheringFun Banner" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/assets/swipe_preview.png" alt="Swiping Phase" width="350">
+  <img src="docs/assets/game_preview.png" alt="Amidakuji Game" width="350">
+</p>
+
 ---
 
 ## ✨ Key Features
