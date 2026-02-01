@@ -19,6 +19,11 @@
 - **Amidakuji (Ghost Leg)**: A fair and fun way to make the final decision. The top restaurants from the swiping phase are entered into a path-based game of luck.
 - **Instant Sync**: Everyone watches the game unfold in real-time, synchronized across all devices.
 
+### 🔔 Phase Reminders & Sharing
+- **Browser Notifications**: Automatic countdown alerts for both host and participants when a phase ends.
+- **Host Control Center**: A dedicated sharing toolbar for the host to instantly nudge friends via **WhatsApp** or **LINE**.
+- **Context-Aware Messages**: Pre-filled sharing messages that adapt based on the current phase (Joining, Voting, or Results).
+
 ### 📅 Seamless Integration
 - **Google Maps**: One-click navigation to the winner.
 - **Google Calendar**: Instantly sync the winning restaurant, date, and time to your schedule.
