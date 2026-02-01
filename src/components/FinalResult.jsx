@@ -1,4 +1,6 @@
 import React from 'react';
+import HostShareToolbar from './HostShareToolbar';
+import { auth } from '../lib/firebase';
 
 const FinalResult = ({ session, setMode }) => {
     const { finalChoice, finalRanking, startDate, name } = session;
@@ -78,6 +80,8 @@ const FinalResult = ({ session, setMode }) => {
                     </div>
                 </div>
             </div>
+
+            <HostShareToolbar session={session} currentUser={auth.currentUser} messageType="result" />
 
             {/* RANKING LIST */}
             <div className="mb-10 text-left">

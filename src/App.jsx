@@ -15,6 +15,7 @@ import WaitingRoom from './components/WaitingRoom'
 import FinalResult from './components/FinalResult'
 
 import { fetchRestaurantsLive } from './services/restaurantService'
+import { requestNotificationPermission, showNotification } from './utils/notification'
 import './App.css'
 
 function App() {
@@ -33,6 +34,8 @@ function App() {
       setJoinId(id)
       setMode('join')
     }
+    // Request permission on mount
+    requestNotificationPermission();
   }, [])
 
   // Listen for session updates
@@ -70,7 +73,7 @@ function App() {
           const participantCount = (data.participants || []).length;
           if (data.status === 'amidakuji' && resultsCount >= participantCount && participantCount > 0) {
             if (data.hostId === myUid && restaurants.length > 0) {
-              calculateFinalResult(data);
+              calculateFinalResult({ id: snapshot.id, ...data });
             }
           }
 
@@ -123,6 +126,15 @@ function App() {
       if (diff <= 0) {
         setTimeLeft('00:00')
         clearInterval(interval)
+
+        // Browser Notification
+        showNotification("Time's Up!", {
+          body: session.status === 'recruiting'
+            ? `The voting for "${session.name}" has ended! Click to see the next phase.`
+            : `The fate for "${session.name}" has been decided! See the results.`,
+          tag: 'timer-ended',
+          requireInteraction: true
+        });
 
         // Timer reached 0: Transition based on current status
         if (session.hostId === auth.currentUser?.uid) {

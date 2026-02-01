@@ -1,4 +1,5 @@
 import React from 'react';
+import HostShareToolbar from './HostShareToolbar';
 
 const WaitingRoom = ({ session, timeLeft, restaurants, currentUser }) => {
     const participants = session.participants || [];
@@ -83,6 +84,8 @@ const WaitingRoom = ({ session, timeLeft, restaurants, currentUser }) => {
                     );
                 })}
             </div>
+
+            <HostShareToolbar session={session} currentUser={currentUser} messageType="waiting" />
 
             <div className="mt-12 flex flex-col items-center">
                 <div className="w-12 h-1 shadow-inner bg-gray-100 dark:bg-gray-700 rounded-full mb-4"></div>

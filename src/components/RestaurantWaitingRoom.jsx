@@ -1,4 +1,5 @@
 import React from 'react';
+import HostShareToolbar from './HostShareToolbar';
 
 const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleEndVotingEarly, loading }) => {
     const participants = session.participants || [];
@@ -65,6 +66,8 @@ const RestaurantWaitingRoom = ({ session, timeLeft, currentUser, handleEndVoting
                     );
                 })}
             </div>
+
+            <HostShareToolbar session={session} currentUser={currentUser} messageType="voting" />
 
             {isHost && (
                 <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
