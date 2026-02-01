@@ -20,13 +20,15 @@
 - **Schedule Matcher**: Automatically analyzes all participant availability to find the most popular Date and Time for the group.
 
 ### 🍽️ Restaurant Discovery
-- **Real-time Search**: Powered by the **Google Places API (New)** to find the best spots in your chosen area.
-- **Tinder-Style Swiping**: Swipe right to "Like" and left to "Skip" restaurants based on group preferences.
+- **Preference Search (AI)**: Automatically finds the best spots using the **Google Places API** based on group preferences.
+- **Custom List Mode**: Allows hosts to manually search and pre-select a list of restaurants, perfect for when you already have placeholders in mind.
+- **Tinder-Style Swiping**: (Preference Mode only) Swipe right to "Like" and left to "Skip".
 - **Popularity Ranking**: Tracks real-time results to show which restaurants the group loves most.
 
 ### 🎮 The "Chosen One" Game
-- **Amidakuji (Ghost Leg)**: A fair and fun way to make the final decision. The top restaurants from the swiping phase are entered into a path-based game of luck.
+- **Amidakuji (Ghost Leg)**: A fair and fun way to make the final decision. Supports up to 10 restaurants with a dynamic path-based game of luck.
 - **Instant Sync**: Everyone watches the game unfold in real-time, synchronized across all devices.
+- **Metadata Integrity**: Automatically locks restaurant details (names, photos, and addresses) into the session to ensure a consistent experience for all participants.
 
 ### 🔔 Phase Reminders & Sharing
 - **Browser Notifications**: Automatic countdown alerts for both host and participants when a phase ends.
@@ -46,6 +48,7 @@
 - **Icons**: [Lucide React](https://lucide.dev/)
 - **Backend & Database**: [Firebase](https://firebase.google.com/) (Firestore & Anonymous Auth)
 - **Place Data**: [Google Places API (New)](https://developers.google.com/maps/documentation/places/web-service/overview)
+- **Maps Integration**: [Google Maps JS API](https://developers.google.com/maps/documentation/javascript) (Autocomplete & Search)
 
 ---
 
@@ -98,47 +101,53 @@ This project is for personal use and portfolio demonstration. Feel free to explo
 graph TD
     %% Phase 1: Creation
     Start([User Opens App]) --> Home{Home View}
-    Home -->|Create| HostForm[Host: Fill Details & Wait Duration]
-    HostForm --> CreateSession[Firebase: Session Created status='recruiting']
+    Home -->|Create| HostForm[Host: Fill Details]
+    HostForm --> ModeSelect{Selection Mode?}
+    
+    ModeSelect -->|Preference Search| CreateSessionP[Firebase: Session Created status='recruiting']
+    ModeSelect -->|Custom List| CreateSessionC[Firebase: Session Created status='recruiting']
+    
     HostSession[Host: Invitation Screen / Share ID]
-    CreateSession --> HostSession
+    CreateSessionP --> HostSession
+    CreateSessionC --> HostSession
 
     %% Sharing logic
-    HostSession -.->|Share link via WhatsApp/LINE| Participants
+    HostSession -.->|Share link| Participants
     
     %% Phase 2: Joining
     Participants[Participants: Open Link] --> JoinSession[Join Session: Fill Nickname & Avails]
-    JoinSession --> SwipePhase[Swiping Phase: Vote for Restaurants]
+    
+    JoinSession -->|Preference Mode| SwipePhase[Swiping Phase: Vote for Restaurants]
+    JoinSession -->|Custom Mode| WaitAmidakuji[Waiting Room: Ready for Game]
+    
     SwipePhase --> SwipeFinished[Swipe Finished]
-    SwipeFinished --> WaitAmidakuji[Restaurant Waiting Room status='recruiting']
+    SwipeFinished --> WaitAmidakuji
 
     %% Phase 3: Transition to Amidakuji
-    HostSession --> RecruitingWait{Timer Ends or End Early?}
-    WaitAmidakuji --> RecruitingWait
+    WaitAmidakuji --> RecruitingWait{Host Starts Game?}
     RecruitingWait -->|YES| StartAmidakuji[App Core: Start Amidakuji Game status='amidakuji']
     
     %% Notification logic
-    StartAmidakuji -.->|Browser Notification| NotifyStart["Time's Up! Game Starting"]
+    StartAmidakuji -.->|Browser Notification| NotifyStart["Game Starting!"]
 
     %% Phase 4: Amidakuji Game
     StartAmidakuji --> AmidakujiGame[Everyone: Play Amidakuji Game]
     AmidakujiGame --> AmidakujiFinished[Game Finished: Mode: waiting_result]
-    AmidakujiFinished --> ResultsWaiting[Waiting Room status='amidakuji']
-
+    
     %% Phase 5: Finalization
-    ResultsWaiting --> AllFinished{All Participants Done or Timer Ends?}
-    AllFinished -->|YES| CalcResult[App Core: Calculate Final Result status='finished']
+    AmidakujiFinished --> CalcResult[App Core: Calculate Final Result status='finished']
     
     %% Notification logic
-    CalcResult -.->|Browser Notification| NotifyFinish["Fate Decided! See results"]
+    CalcResult -.->|Browser Notification| NotifyFinish["Fate Decided!"]
 
     %% Final Phase
     CalcResult --> FinalResultView[Final Result Screen: Winner & Schedule]
-    FinalResultView -->|Share Result| LineWhatsApp[Social Share: WhatsApp / LINE]
+    FinalResultView -->|Share Result| LineWhatsApp[Social Share]
 
     %% Styling
     style Start fill:#f9f,stroke:#333,stroke-width:2px
     style FinalResultView fill:#ff9,stroke:#333,stroke-width:4px
     style NotifyStart fill:#f66,stroke:#333,stroke-width:2px
     style NotifyFinish fill:#f66,stroke:#333,stroke-width:2px
+    style WaitAmidakuji fill:#bbf,stroke:#333,stroke-width:2px
 ```
