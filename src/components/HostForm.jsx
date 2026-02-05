@@ -19,7 +19,7 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
         locations: [],
         cuisines: [],
         timePeriods: [],
-        minPrice: 100,
+        minPrice: 10,
         maxPrice: 1000,
         waitMinutes: 10,
         selectionMode: 'preference', // 'preference' or 'custom'
@@ -299,7 +299,7 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
                                         name="minPrice"
                                         value={formData.minPrice}
                                         onChange={handleChange}
-                                        min="100"
+                                        min="10"
                                         max="1000"
                                         className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     />
@@ -311,7 +311,7 @@ const HostForm = ({ onSubmit, loading, session, setSession, setMode, timeLeft })
                                         name="maxPrice"
                                         value={formData.maxPrice}
                                         onChange={handleChange}
-                                        min="100"
+                                        min="10"
                                         max="1000"
                                         className="w-full px-4 py-3 rounded-lg border border-gray-300 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     />
